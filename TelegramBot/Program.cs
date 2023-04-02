@@ -21,205 +21,15 @@ namespace GoogleCalendarApi
 {
     class Program
     {
-        public static class ScheduleParser
-        {
-            private static string[] Scopes = { CalendarService.Scope.CalendarReadonly };
-            private static CalendarService? Service = null;
+        //токен для телеграм бота
+        private static string token { get; set; } = "5522982120:AAFwClh10_pQJyvAvAmHha-4OPWrrpmWd-E";
+        private static TelegramBotClient? client;
 
-            static ScheduleParser()
-            {
-                try
-                {
-                    var credential = GoogleCredential.FromFile("C:\\Users\\Sasha\\Desktop\\TelegramBot/telegrambot-363818-c5afa8c735d4.json")
-                                    .CreateScoped(Scopes);
-                    Service = new CalendarService(new BaseClientService.Initializer()
-                    {
-                        HttpClientInitializer = credential,
-                        ApplicationName = "Your Application Name"
-                    });
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine(ex.ToString());
-                    throw;
-                }
-            }
+        // Словарь для хранения выбранной пользователем группы и его chat id
+        static Dictionary<long, string> userGroups = new Dictionary<long, string>();
 
-            public static async Task<List<Event>> GetScheduleForGroup(string group, DateTime date)
-            {
-                var calendarId = await GetCalendarIdForGroup(group);
-
-                if (calendarId == null)
-                {
-                    return null;
-                }
-
-                var events = await GetEventsForDate(calendarId, date);
-
-                if (events == null || events.Count == 0)
-                {
-                    return null;
-                }
-
-                return events;
-            }
-
-            private static async Task<List<Event>> GetEventsForDate(string calendarId, DateTime date)
-            {
-                EventsResource.ListRequest request = Service.Events.List(calendarId);
-                request.TimeMin = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0);
-                request.TimeMax = new DateTime(date.Year, date.Month, date.Day, 23, 59, 59);
-                request.ShowDeleted = false;
-                request.SingleEvents = true;
-                request.MaxResults = 100;
-                request.OrderBy = EventsResource.ListRequest.OrderByEnum.StartTime;
-
-                var response = await request.ExecuteAsync();
-
-                return response.Items.Cast<Event>().ToList();
-            }
-
-            private static async Task<string> GetCalendarIdForGroup(string group)
-            {
-                var calendarList = await Service.CalendarList.List().ExecuteAsync();
-                var calendar = calendarList.Items.FirstOrDefault(c => c.Id == group);
-
-                if (calendar == null)
-                {
-                    Console.WriteLine($"Календар з ідентифікатором {group} не знайдено.");
-                    return null;
-                }
-
-                return calendar.Id;
-            }
-        }
-    
-    
-
-    private static async Task<string> GetSchedule(string groupName, DateTime date)
-        {
-            // Створення об'єкту клієнта для роботи з Google Calendar API
-            var credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
-                new ClientSecrets
-                {
-                    ClientId = "403794239920-8bte1nq4kusub13f0odighk29bpqfn97.apps.googleusercontent.com",
-                    ClientSecret = "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"
-                },
-                new[] { CalendarService.Scope.CalendarReadonly },
-                "user",
-                CancellationToken.None);
-
-            var service = new CalendarService(new BaseClientService.Initializer
-            {
-                HttpClientInitializer = credential,
-                ApplicationName = "TelegramBot"
-            });
-
-            // Формування запиту до Google Calendar API для отримання подій за датою та групою
-            var calendarId = "c_hlnnlo9824qj9tc1ita1ofhgu8@group.calendar.google.com";
-            var request = service.Events.List(calendarId);
-            request.TimeMin = date.Date;
-            request.TimeMax = date.AddDays(1).Date;
-            request.SingleEvents = true;
-            request.OrderBy = EventsResource.ListRequest.OrderByEnum.StartTime;
-
-            // Виконання запиту та обробка результату
-            var events = await request.ExecuteAsync();
-            var sb = new StringBuilder();
-
-            if (events.Items != null && events.Items.Any())
-            {
-                sb.AppendLine($"Розклад для {groupName} на {date:dd.MM.yyyy}:");
-                sb.AppendLine();
-
-                foreach (var item in events.Items)
-                {
-                    var start = item.Start.DateTime.HasValue ? item.Start.DateTime.Value : DateTime.Parse(item.Start.Date);
-                    sb.AppendLine($"Предмет: {item.Summary}");
-                    sb.AppendLine($"Час: {start:HH:mm} - {start.AddMinutes(item.End.DateTime.Value.Minute - start.Minute):HH:mm}");
-                    sb.AppendLine($"Аудиторія: {item.Location}");
-                    sb.AppendLine();
-                }
-            }
-            else
-            {
-                sb.AppendLine($"На {date:dd.MM.yyyy} для {groupName} немає розкладу.");
-            }
-
-            return sb.ToString();
-        }
-
-
-
-
-
-        
-
-
-
-        public static class ScheduleFormatter
-        {
-            public static string FormatSchedule(List<Event> schedule, DateTime date)
-            {
-                StringBuilder sb = new StringBuilder();
-                sb.AppendLine($"Розклад на {date.ToShortDateString()}:");
-                foreach (var lesson in schedule)
-                {
-                    sb.AppendLine($"{lesson.StartTime.ToString("HH:mm")} - {lesson.EndTime.ToString("HH:mm")}: {lesson.Subject} ({lesson.Teacher}) - {lesson.Room}");
-                }
-                return sb.ToString();
-            }
-        }
-
-        public class Event
-        {
-            public DateTime StartTime { get; set; }
-            public DateTime EndTime { get; set; }
-            public string? Subject { get; set; }
-            public string? Teacher { get; set; }
-            public string? Room { get; set; }
-        }
-
-
-
-
-
-
-        private static async Task<string> GetSchedule(long chatId, DateTime date)
-        {
-            var group = userGroups[chatId];
-            var schedule = await ScheduleParser.GetScheduleForGroup(group, date);
-            if (schedule == null)
-            {
-                return "На цю дату розклад не знайдено для групи " + group;
-            }
-            return ScheduleFormatter.FormatSchedule(schedule, date);
-        }
-
-
-        private static async Task<string> GetScheduleForNextFiveDays(long chatId)
-        {
-            var group = userGroups[chatId];
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < 5; i++)
-            {
-                DateTime date = DateTime.Today.AddDays(i);
-                var schedule = await ScheduleParser.GetScheduleForGroup(group, date);
-                if (schedule == null)
-                {
-                    sb.AppendLine($"На {date.ToShortDateString()} розклад не знайдено для групи {group}");
-                }
-                else
-                {
-                    sb.AppendLine(ScheduleFormatter.FormatSchedule(schedule, date));
-                }
-            }
-            return sb.ToString();
-        }
-
-
-        
-
+        // Путь к файлу для сохранения и чтения словаря
+        static string filePath = "userGroup.txt";
 
 
 
@@ -277,10 +87,132 @@ namespace GoogleCalendarApi
             return keyboard;
         }
 
-        // Словарь для хранения выбранной пользователем группы и его chat id
-        static Dictionary<long, string> userGroups = new Dictionary<long, string>();
-        // Путь к файлу для сохранения и чтения словаря
-        static string filePath = "userGroup.txt";
+
+
+
+
+
+        //клас в якому відбувається авторизація і отримання даних з гугл календаря
+        public static class ScheduleParser
+        {
+            private static string[] Scopes = { CalendarService.Scope.CalendarReadonly };
+            private static CalendarService? Service = null;
+
+            //получення даних для авторизації GoogleCalendarService
+            static ScheduleParser()
+            {
+                try
+                {
+                    var credential = GoogleCredential.FromFile("C:\\Users\\Sasha\\Desktop\\TelegramBot/telegrambot-363818-c5afa8c735d4.json")
+                                    .CreateScoped(Scopes);
+                    Service = new CalendarService(new BaseClientService.Initializer()
+                    {
+                        HttpClientInitializer = credential,
+                        ApplicationName = "Your Application Name"
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.ToString());
+                    throw;
+                }
+            }
+
+
+            //шукає календарь і видає список подій
+            public static async Task<List<Event>> GetScheduleForGroup(string group, DateTime date)
+            {
+                string calendarId = "c_hlnnlo9824qj9tc1ita1ofhgu8@group.calendar.google.com";
+
+                var events = await GetEventsForDate(calendarId, date);
+
+                if (events == null || events.Count == 0)
+                {
+                    return null;
+                }
+
+                return events;
+            }
+
+            //повертає список подій на задану дату відповідного календаря
+            private static async Task<List<Event>> GetEventsForDate(string calendarId, DateTime date)
+            {
+                EventsResource.ListRequest request = Service.Events.List(calendarId);
+                request.TimeMin = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0);
+                request.TimeMax = new DateTime(date.Year, date.Month, date.Day, 23, 59, 59);
+                request.ShowDeleted = false;
+                request.SingleEvents = true;
+                request.MaxResults = 100;
+                request.OrderBy = EventsResource.ListRequest.OrderByEnum.StartTime;
+
+                var response = await request.ExecuteAsync();
+
+                return response.Items.Cast<Event>().ToList();
+            }
+        }
+
+
+        //клас в якому відбувається конвертація отриманих даних з календаря в рядок
+        public static class ScheduleFormatter
+        {
+            public static string FormatSchedule(List<Event> schedule, DateTime date)
+            {
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine($"Розклад на {date.ToShortDateString()}:");
+                foreach (var lesson in schedule)
+                {
+                    sb.AppendLine($"{lesson.StartTime.ToString("HH:mm")} - {lesson.EndTime.ToString("HH:mm")}: {lesson.Subject} ({lesson.Teacher}) - {lesson.Room}");
+                }
+                return sb.ToString();
+            }
+        }
+
+
+        //запис даних про подію
+        public class Event
+        {
+            public DateTime StartTime { get; set; }
+            public DateTime EndTime { get; set; }
+            public string? Subject { get; set; }
+            public string? Teacher { get; set; }
+            public string? Room { get; set; }
+        }
+
+
+        //беручи chatId і  групу генерує розклад
+        private static async Task<string> GetSchedule(long chatId, DateTime date)
+        {
+            var group = userGroups[chatId];
+            var schedule = await ScheduleParser.GetScheduleForGroup(group, date);
+            if (schedule == null)
+            {
+                return "На цю дату розклад не знайдено для групи " + group;
+            }
+            return ScheduleFormatter.FormatSchedule(schedule, date);
+        }
+
+
+        //беручи chatId і  групу генерує розклад на 5 днів
+        private static async Task<string> GetScheduleForNextFiveDays(long chatId)
+        {
+            var group = userGroups[chatId];
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 5; i++)
+            {
+                DateTime date = DateTime.Today.AddDays(i);
+                var schedule = await ScheduleParser.GetScheduleForGroup(group, date);
+                if (schedule == null)
+                {
+                    sb.AppendLine($"На {date.ToShortDateString()} розклад не знайдено для групи {group}");
+                }
+                else
+                {
+                    sb.AppendLine(ScheduleFormatter.FormatSchedule(schedule, date));
+                }
+            }
+            return sb.ToString();
+        }
+
 
 
         static void SaveDictionaryToFile(Dictionary<long, string> dictionary, string filePath)
@@ -294,9 +226,7 @@ namespace GoogleCalendarApi
             }
         }
 
-        //токен для телеграм бота
-        private static string token { get; set; } = "5522982120:AAFwClh10_pQJyvAvAmHha-4OPWrrpmWd-E";
-        private static TelegramBotClient? client;
+
 
 
 
@@ -404,10 +334,9 @@ namespace GoogleCalendarApi
 
 
 
-
+            SaveDictionaryToFile(userGroups, filePath);
             Console.WriteLine("Натисніть будь-яку кнопку, щоб продовжити...");
             Console.ReadLine();
         }
     }
 }
-
