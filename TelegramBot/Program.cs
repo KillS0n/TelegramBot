@@ -117,8 +117,8 @@ namespace GoogleCalendarApi
             }
 
 
-            //шукає календарь і видає список подій
-            public static async Task<List<Event>> GetScheduleForGroup(string group, DateTime date)
+            //видає список подій до одному заданому календарю
+            public static async Task<List<Event>?> GetScheduleForGroup(string group, DateTime date)
             {
                 var calendarId = "c_hlnnlo9824qj9tc1ita1ofhgu8@group.calendar.google.com";
                 var selectedDate = date; // використовуйте параметр методу
@@ -268,7 +268,13 @@ namespace GoogleCalendarApi
             async static Task Update(ITelegramBotClient botClient, Update update, CancellationToken token)
             {
                 var groupNames = new List<string> { "ПІ-91", "ПІ-20", "ПІ-21", "ПІ-22", "КН-19", "КН-20", "КН-21", "КН-22", "ІН-19", "ІН-21", "ІН-22" };
+                if (update == null)
+                    return;
+
                 var message = update.Message;
+
+                if (message == null)
+                    return;
                 long chatId = message.Chat.Id;
 
                 if (message.Type == MessageType.Text)
@@ -309,7 +315,7 @@ namespace GoogleCalendarApi
                             await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
                         }
                     }
-                    else if (groupNames.Contains(message.Text))
+                    else if (message.Text != null && groupNames.Contains(message.Text))
                     {
                         userGroups[chatId] = message.Text;
                         await botClient.SendTextMessageAsync(chatId, $"Ваша група: {message.Text}.\nОберіть один з наступних пунктів:", replyMarkup: GetMainKeyboard());
