@@ -28,8 +28,6 @@ namespace GoogleCalendarApi
         // Словарь для хранения выбранной пользователем группы и его chat id
         static Dictionary<long, string> userGroups = new Dictionary<long, string>();
 
-        // Путь к файлу для сохранения и чтения словаря
-        static string filePath = "userGroup.txt";
 
 
 
@@ -122,32 +120,21 @@ namespace GoogleCalendarApi
             //шукає календарь і видає список подій
             public static async Task<List<Event>> GetScheduleForGroup(string group, DateTime date)
             {
-                string calendarId = "c_hlnnlo9824qj9tc1ita1ofhgu8@group.calendar.google.com";
+                var calendarId = "c_hlnnlo9824qj9tc1ita1ofhgu8@group.calendar.google.com";
+                var selectedDate = date; // використовуйте параметр методу
 
-                var events = await GetEventsForDate(calendarId, date);
-
-                if (events == null || events.Count == 0)
+                var schedule = await ScheduleParser.GetScheduleForGroup(calendarId, selectedDate);
+                if (schedule == null || schedule.Count == 0)
                 {
-                    return null;
+                    return null; // повернути порожній список, щоб відобразити відповідне повідомлення
                 }
-
-                return events;
-            }
-
-            //повертає список подій на задану дату відповідного календаря
-            private static async Task<List<Event>> GetEventsForDate(string calendarId, DateTime date)
-            {
-                EventsResource.ListRequest request = Service.Events.List(calendarId);
-                request.TimeMin = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0);
-                request.TimeMax = new DateTime(date.Year, date.Month, date.Day, 23, 59, 59);
-                request.ShowDeleted = false;
-                request.SingleEvents = true;
-                request.MaxResults = 100;
-                request.OrderBy = EventsResource.ListRequest.OrderByEnum.StartTime;
-
-                var response = await request.ExecuteAsync();
-
-                return response.Items.Cast<Event>().ToList();
+                else
+                {
+                    var scheduleStr = ScheduleFormatter.FormatSchedule(schedule, selectedDate);
+                    // виведення розкладу у вигляді рядка, наприклад:
+                    Console.WriteLine(scheduleStr);
+                    return schedule;
+                }
             }
         }
 
@@ -188,7 +175,8 @@ namespace GoogleCalendarApi
             {
                 return "На цю дату розклад не знайдено для групи " + group;
             }
-            return ScheduleFormatter.FormatSchedule(schedule, date);
+            var scheduleStr = ScheduleFormatter.FormatSchedule(schedule, date);
+            return scheduleStr;
         }
 
 
@@ -214,7 +202,7 @@ namespace GoogleCalendarApi
         }
 
 
-
+        //запис словника в файл
         static void SaveDictionaryToFile(Dictionary<long, string> dictionary, string filePath)
         {
             using (StreamWriter writer = new StreamWriter(filePath))
@@ -300,11 +288,13 @@ namespace GoogleCalendarApi
                     {
                         if (message.Text == "Вивести розклад на сьогодні")
                         {
+                            var groupName = userGroups[chatId];
                             var todaySchedule = await GetSchedule(chatId, DateTime.Today);
                             await botClient.SendTextMessageAsync(chatId, todaySchedule);
                         }
                         else if (message.Text == "Вивести розклад на завтра")
                         {
+                            var groupName = userGroups[chatId];
                             var tomorrowSchedule = await GetSchedule(chatId, DateTime.Today.AddDays(1));
                             await botClient.SendTextMessageAsync(chatId, tomorrowSchedule);
                         }
