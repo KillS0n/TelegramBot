@@ -278,9 +278,10 @@ namespace GoogleCalendarApi
         //перевірка подій на 24 години і сповіщення про них за 30 хвилин до початку
         public async Task CheckEvents()
         {
-            var events = _contex.Events
-                .Where(e => e.StartTime >= DateTime.Now && e.StartTime <= DateTime.Now.AddHours(24))
-                .Include(e => e.Subscribers)
+
+            var calendar = new GoogleCalendar(userGroups);
+            var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
+            .Where(e => e.StartTime >= DateTime.Now && e.StartTime <= DateTime.Now.AddHours(24))
                 .ToList();
 
             foreach (var e in events)
