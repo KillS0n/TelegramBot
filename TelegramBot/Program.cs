@@ -423,9 +423,12 @@ namespace GoogleCalendarApi
                         {
                             var groupName = userGroups[chatId];
                             var calendar = new GoogleCalendar(userGroups);
+                            var today = DateTime.Today;
+                            var startOfWeek = today.AddDays(-(int)today.DayOfWeek + (int)DayOfWeek.Monday);
+                            var endOfWeek = startOfWeek.AddDays(6);
                             var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
-                                .Where(e => e.Group == groupName && e.StartTime >= DateTime.Today && e.StartTime < DateTime.Today.AddDays(7))
-                                .OrderBy(e => e.StartTime);
+                            .Where(e => e.Group == groupName && e.StartTime >= startOfWeek && e.StartTime <= endOfWeek)
+                            .OrderBy(e => e.StartTime);
 
                             if (events.Any())
                             {
@@ -446,7 +449,7 @@ namespace GoogleCalendarApi
                                     scheduleByDay[dayOfWeek].Add(formattedEvent);
                                 }
 
-                                var messageToSend = $"Розклад для групи {groupName} на {DateTime.Today.ToShortDateString()}:\n";
+                                var messageToSend = $"Розклад для групи {groupName} на поточний тиждень \nТобто з понеділка {startOfWeek.ToShortDateString()} по неділю {endOfWeek.ToShortDateString()}\n";
 
                                 foreach (var pair in scheduleByDay)
                                 {
@@ -469,53 +472,55 @@ namespace GoogleCalendarApi
 
 
                         //вивід пар на наступний тиждень
-                        else if (message.Text == "Вивести розклад на наступний тиждень")
-                        {
-                            var groupName = userGroups[chatId];
-                            var calendar = new GoogleCalendar(userGroups);
-                            var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
-                                .Where(e => e.Group == groupName && e.StartTime >= DateTime.Today.AddDays(7).Date && e.StartTime < DateTime.Today.AddDays(14).Date)
+                            else if (message.Text == "Вивести розклад на наступний тиждень")
+                            {
+                                var groupName = userGroups[chatId];
+                                var calendar = new GoogleCalendar(userGroups);
+                                var nextMonday = DateTime.Today.AddDays(((int)DayOfWeek.Monday - (int)DateTime.Today.DayOfWeek + 7) % 7);
+                                var nextSunday = nextMonday.AddDays(6);
+                                var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
+                                .Where(e => e.Group == groupName && e.StartTime >= nextMonday && e.StartTime <= nextSunday)
                                 .OrderBy(e => e.StartTime);
 
 
                             if (events.Any())
-                            {
-                                var scheduleByDay = new Dictionary<DayOfWeek, List<string>>();
-                                scheduleByDay[DayOfWeek.Monday] = new List<string>();
-                                scheduleByDay[DayOfWeek.Tuesday] = new List<string>();
-                                scheduleByDay[DayOfWeek.Wednesday] = new List<string>();
-                                scheduleByDay[DayOfWeek.Thursday] = new List<string>();
-                                scheduleByDay[DayOfWeek.Friday] = new List<string>();
-                                scheduleByDay[DayOfWeek.Saturday] = new List<string>();
-                                scheduleByDay[DayOfWeek.Sunday] = new List<string>();
-
-                                foreach (var ev in events)
                                 {
-                                    var dayOfWeek = ev.StartTime.DayOfWeek;
-                                    var formattedEvent = $"Назва пари: {ev.Subject} \nПочаток: {ev.StartTime.ToShortTimeString()} - кінець: {ev.EndTime.ToShortTimeString()} ,\nВикладач: {ev.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(ev.GoogleMeetLink) ? ev.GoogleMeetLink : "Силка на пару відсутня")}\n";
+                                    var scheduleByDay = new Dictionary<DayOfWeek, List<string>>();
+                                    scheduleByDay[DayOfWeek.Monday] = new List<string>();
+                                    scheduleByDay[DayOfWeek.Tuesday] = new List<string>();
+                                    scheduleByDay[DayOfWeek.Wednesday] = new List<string>();
+                                    scheduleByDay[DayOfWeek.Thursday] = new List<string>();
+                                    scheduleByDay[DayOfWeek.Friday] = new List<string>();
+                                    scheduleByDay[DayOfWeek.Saturday] = new List<string>();
+                                    scheduleByDay[DayOfWeek.Sunday] = new List<string>();
 
-                                    scheduleByDay[dayOfWeek].Add(formattedEvent);
-                                }
-
-                                var messageToSend = $"Розклад для групи {groupName} на {DateTime.Today.ToShortDateString()}:\n";
-
-                                foreach (var pair in scheduleByDay)
-                                {
-                                    if (pair.Value.Any())
+                                    foreach (var ev in events)
                                     {
-                                        var dayOfWeekName = CultureInfo.CurrentCulture.DateTimeFormat.GetDayName(pair.Key);
-                                        var eventsForDay = string.Join("\n", pair.Value);
+                                        var dayOfWeek = ev.StartTime.DayOfWeek;
+                                        var formattedEvent = $"Назва пари: {ev.Subject} \nПочаток: {ev.StartTime.ToShortTimeString()} - кінець: {ev.EndTime.ToShortTimeString()} ,\nВикладач: {ev.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(ev.GoogleMeetLink) ? ev.GoogleMeetLink : "Силка на пару відсутня")}\n";
 
-                                        messageToSend += $"\n{dayOfWeekName}:\n{eventsForDay}\n";
+                                        scheduleByDay[dayOfWeek].Add(formattedEvent);
                                     }
-                                }
 
-                                await botClient.SendTextMessageAsync(chatId, messageToSend);
-                            }
-                            else
-                            {
-                                await botClient.SendTextMessageAsync(chatId, $"На наступний тиждень для групи {groupName} немає подій у календарі.");
-                            }
+                                    var messageToSend = $"Розклад для групи {groupName} на наступний тиждень \nТобто з понеділка {nextMonday.ToShortDateString()} по неділю {nextSunday.ToShortDateString()}:\n";
+
+                                    foreach (var pair in scheduleByDay)
+                                    {
+                                        if (pair.Value.Any())
+                                        {
+                                            var dayOfWeekName = CultureInfo.CurrentCulture.DateTimeFormat.GetDayName(pair.Key);
+                                            var eventsForDay = string.Join("\n", pair.Value);
+
+                                            messageToSend += $"\n{dayOfWeekName}:\n{eventsForDay}\n";
+                                        }
+                                    }
+
+                                    await botClient.SendTextMessageAsync(chatId, messageToSend);
+                                }
+                                else
+                                {
+                                    await botClient.SendTextMessageAsync(chatId, $"На наступний тиждень для групи {groupName} немає подій у календарі.");
+                                }
                         }
 
 
@@ -546,7 +551,10 @@ namespace GoogleCalendarApi
 
             Console.ReadLine();
             Console.WriteLine("Натисніть будь-яку кнопку, щоб продовжити...");
-            
+            foreach (KeyValuePair<long, string> userGroup in userGroups)
+            {
+                SaveUserGroupToFile(userGroup.Key, userGroup.Value);
+            }
             Console.ReadLine();
             }
         }
