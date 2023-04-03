@@ -18,6 +18,8 @@ using Newtonsoft.Json.Linq;
 using Google.Apis.Util.Store;
 using System.Globalization;
 using static Google.Apis.Calendar.v3.Data.ConferenceData;
+using Newtonsoft.Json;
+using System.IO;
 
 namespace GoogleCalendarApi
 {
@@ -242,17 +244,7 @@ namespace GoogleCalendarApi
 
 
 
-        //запис словника в файл
-        static void SaveDictionaryToFile(Dictionary<long, string> dictionary, string filePath)
-        {
-            using (StreamWriter writer = new StreamWriter(filePath))
-            {
-                foreach (var kvp in dictionary)
-                {
-                    writer.WriteLine($"{kvp.Key}:{kvp.Value}");
-                }
-            }
-        }
+
 
 
 
@@ -268,25 +260,23 @@ namespace GoogleCalendarApi
 
 
 
-            // Проверка наличия файла для чтения словаря
-            Dictionary<long, string> userGroup = new Dictionary<long, string>();
-            string filePath = "C:\\Users\\Sasha\\Desktop\\TelegramBot\\user_Group.txt";
-            if (global::System.IO.File.Exists(filePath))
+            // Зчитування словника з файлу JSON
+            string filePath = "C:\\Users\\Sasha\\Desktop\\TelegramBot\\user_Group.json";
+            if (System.IO.File.Exists(filePath))
             {
-                string[] fileContent = global::System.IO.File.ReadAllLines(filePath);
-                foreach (var line in fileContent)
+                string jsons = System.IO.File.ReadAllText(filePath);
+                if (!string.IsNullOrEmpty(jsons))
                 {
-                    string[] parts = line.Split(':');
-                    if (parts.Length == 2 && long.TryParse(parts[0], out long chatId))
-                    {
-                        string groupValue = parts[1];
-                        userGroup.Add(chatId, groupValue);
-                    }
+                    userGroups = JsonConvert.DeserializeObject<Dictionary<long, string>>(jsons);
                 }
-                foreach (var kvp in userGroup)
+                else
                 {
-                    Console.WriteLine($"ChatId: {kvp.Key}, GroupValue: {kvp.Value}");
+                    userGroups = new Dictionary<long, string>();
                 }
+            }
+            else
+            {
+                userGroups = new Dictionary<long, string>();
             }
 
 
@@ -525,7 +515,11 @@ namespace GoogleCalendarApi
 
 
             Console.WriteLine("Натисніть будь-яку кнопку, щоб продовжити...");
-            AppDomain.CurrentDomain.ProcessExit += (s, e) => SaveDictionaryToFile(userGroups, filePath);
+            Console.ReadLine();
+            // Зберігання словника в файл JSON
+            filePath = "C:\\Users\\Sasha\\Desktop\\TelegramBot\\user_Group.json";
+            string json = JsonConvert.SerializeObject(userGroups);
+            System.IO.File.AppendAllText(filePath, json);
             Console.ReadLine();
             }
         }
