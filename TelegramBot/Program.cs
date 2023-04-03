@@ -283,7 +283,6 @@ namespace GoogleCalendarApi
 
 
 
-
             //старт телеграм бота
             client = new TelegramBotClient(token);
                 client.StartReceiving(Update, Error);
@@ -434,11 +433,6 @@ namespace GoogleCalendarApi
                                 await botClient.SendTextMessageAsync(chatId, $"На поточний тиждень для групи {groupName} немає подій у календарі.");
                             }
                         }
-                        else if (message.Text == "Змінити групу")
-                        {
-                            userGroups.Remove(chatId);
-                            await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
-                        }
 
 
                         //вивід пар на наступний тиждень
@@ -447,8 +441,9 @@ namespace GoogleCalendarApi
                             var groupName = userGroups[chatId];
                             var calendar = new GoogleCalendar(userGroups);
                             var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
-                                .Where(e => e.Group == groupName && e.StartTime >= DateTime.Today.AddDays(7) && e.StartTime < DateTime.Today.AddDays(14))
+                                .Where(e => e.Group == groupName && e.StartTime >= DateTime.Today.AddDays(7).Date && e.StartTime < DateTime.Today.AddDays(14).Date)
                                 .OrderBy(e => e.StartTime);
+
 
                             if (events.Any())
                             {
@@ -489,6 +484,9 @@ namespace GoogleCalendarApi
                                 await botClient.SendTextMessageAsync(chatId, $"На наступний тиждень для групи {groupName} немає подій у календарі.");
                             }
                         }
+
+
+
                         else if (message.Text == "Змінити групу")
                         {
                             userGroups.Remove(chatId);
@@ -513,9 +511,8 @@ namespace GoogleCalendarApi
             }
 
 
-
-            Console.WriteLine("Натисніть будь-яку кнопку, щоб продовжити...");
             Console.ReadLine();
+            Console.WriteLine("Натисніть будь-яку кнопку, щоб продовжити...");
             // Зберігання словника в файл JSON
             filePath = "C:\\Users\\Sasha\\Desktop\\TelegramBot\\user_Group.json";
             string json = JsonConvert.SerializeObject(userGroups);
