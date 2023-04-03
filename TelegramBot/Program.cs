@@ -237,8 +237,41 @@ namespace GoogleCalendarApi
 
 
 
+        //збереження в файл JSON
+        private static void SaveUserGroupToFile(long chatId, string groupName)
+        {
+            string filePath = "C:\\Users\\Sasha\\Desktop\\TelegramBot\\user_Group.json";
+            Dictionary<long, string> userGroups;
 
+            if (System.IO.File.Exists(filePath))
+            {
+                string jsons = System.IO.File.ReadAllText(filePath);
+                if (!string.IsNullOrEmpty(jsons))
+                {
+                    userGroups = JsonConvert.DeserializeObject<Dictionary<long, string>>(jsons);
+                }
+                else
+                {
+                    userGroups = new Dictionary<long, string>();
+                }
+            }
+            else
+            {
+                userGroups = new Dictionary<long, string>();
+            }
 
+            if (userGroups.ContainsKey(chatId))
+            {
+                userGroups[chatId] = groupName;
+            }
+            else
+            {
+                userGroups.Add(chatId, groupName);
+            }
+
+            string json = JsonConvert.SerializeObject(userGroups);
+            System.IO.File.WriteAllText(filePath, json);
+        }
 
 
 
@@ -513,10 +546,7 @@ namespace GoogleCalendarApi
 
             Console.ReadLine();
             Console.WriteLine("Натисніть будь-яку кнопку, щоб продовжити...");
-            // Зберігання словника в файл JSON
-            filePath = "C:\\Users\\Sasha\\Desktop\\TelegramBot\\user_Group.json";
-            string json = JsonConvert.SerializeObject(userGroups);
-            System.IO.File.AppendAllText(filePath, json);
+            
             Console.ReadLine();
             }
         }
