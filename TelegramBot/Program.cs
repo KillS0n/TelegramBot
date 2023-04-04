@@ -353,48 +353,48 @@ namespace GoogleCalendarApi
 
 
         //перевірка подій на 24 години і сповіщення про них за 30 хвилин до початку
-        public async Task CheckEvents()
-        {
-            var remindersSent = new Dictionary<int, bool>();
-            var calendar = new GoogleCalendar(userGroups);
-            var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
-    .Where(e => e.StartTime >= DateTime.Now && e.StartTime <= DateTime.Now.AddHours(24))
-                .ToList();
-
-            foreach (var e in events)
+            public async Task CheckEvents()
             {
-                foreach (var subscriber in subscribers.Select(s => new Subscriber(s.Key, s.Value)))
+                var remindersSent = new Dictionary<int, bool>();
+                var calendar = new GoogleCalendar(userGroups);
+                var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
+        .Where(e => e.StartTime >= DateTime.Now && e.StartTime <= DateTime.Now.AddHours(24))
+                    .ToList();
+
+                foreach (var e in events)
                 {
-                    // Перевірка, чи хоче користувач отримувати нагадування
-                    if (subscriber.Reminder)
+                    foreach (var subscriber in subscribers.Select(s => new Subscriber(s.Key, s.Value)))
                     {
-                        var reminderTime = e.StartTime.AddMinutes(-30);
-                        var timeToEvent = reminderTime - DateTime.Now;
-
-                        // Перевірка, чи час нагадування в майбутньому
-                        if (timeToEvent.TotalMinutes > 0)
+                        // Перевірка, чи хоче користувач отримувати нагадування
+                        if (subscriber.Reminder)
                         {
-                            if (timeToEvent.TotalMinutes <= 30)
+                            var reminderTime = e.StartTime;
+                            var timeToEvent = reminderTime - DateTime.Now;
+
+                            // Перевірка, чи час нагадування в майбутньому
+                            if (timeToEvent.TotalMinutes > 0)
                             {
-                                // Створення ключа для словника remindersSent
-                                var key = $"{e.Subject}-{e.StartTime.Date.GetHashCode()}";
-
-                                // Перевірка, чи було вже виведено сповіщення для цієї пари
-                                if (!remindersSent.ContainsKey(key.GetHashCode()))
+                                if (timeToEvent.TotalMinutes <= 30)
                                 {
+                                    // Створення ключа для словника remindersSent
+                                    var key = $"{e.Subject}-{e.StartTime.Date.ToString()}";
 
-                                    // Send reminder message to subscriber
-                                    await client.SendTextMessageAsync(subscriber.ChatId, $"Нагадування: скоро почток наступної пари! \n\nНазва пари: {e.Subject} \nПочаток: {e.StartTime.ToShortTimeString()} - кінець: {e.EndTime.ToShortTimeString()} ,\nВикладач: {e.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(e.GoogleMeetLink) ? e.GoogleMeetLink : "Силка на пару відсутня")}\n\n");
+                                    // Перевірка, чи було вже виведено сповіщення для цієї пари
+                                    if (!remindersSent.ContainsKey(key.GetHashCode()))
+                                    {
 
-                                    // Встановлення значення флага для ключа в словнику remindersSent
-                                    remindersSent[key.GetHashCode()] = true;
+                                        // Send reminder message to subscriber
+                                        await client.SendTextMessageAsync(subscriber.ChatId, $"Нагадування: скоро почток наступної пари! \n\nНазва пари: {e.Subject} \nПочаток: {e.StartTime.ToShortTimeString()} - кінець: {e.EndTime.ToShortTimeString()} ,\nВикладач: {e.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(e.GoogleMeetLink) ? e.GoogleMeetLink : "Силка на пару відсутня")}\n\n");
+
+                                        // Встановлення значення флага для ключа в словнику remindersSent
+                                        remindersSent[key.GetHashCode()] = true;
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
         
 
 
@@ -483,20 +483,24 @@ namespace GoogleCalendarApi
 
 
                 long chatId = message.Chat.Id;
-                
+
+                if (!userGroups.TryGetValue(chatId, out string group))
+                {
+                    userGroups[chatId] = "Group 1"; // Додати новий ключ зі значенням за замовчуванням
+                    group = "Group 1";
+                }
 
 
-
-                    if (message.Type == MessageType.Text)
+                if (message.Type == MessageType.Text)
                 {
                     if (message.Text == "/start")
                     {
-                        if (userGroups.ContainsKey(chatId))
+                        if (userGroups.TryGetValue(chatId, out string groupValue2) && groupValue2 != "Group 1")
                         {
 
                             await botClient.SendTextMessageAsync(chatId, $"Ви обрали групу {userGroups[chatId]}.\nОберіть один з наступних пунктів:", replyMarkup: GetMainKeyboard());
                         }
-                        else
+                        if (userGroups.TryGetValue(chatId, out string groupValue) && groupValue == "Group 1")
                         {
                             await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
                         }
@@ -725,11 +729,18 @@ namespace GoogleCalendarApi
                             await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
                         }
                     if (message.Text != null && groupNames.Contains(message.Text))
+                    {
+                        if (userGroups.ContainsKey(chatId))
                         {
                             userGroups[chatId] = message.Text;
-                            await botClient.SendTextMessageAsync(chatId, $"Ваша група: {message.Text}.\nОберіть один з наступних пунктів:", replyMarkup: GetMainKeyboard());
                         }
+                        else
+                        {
+                            userGroups.Add(chatId, message.Text);
+                        }
+                        await botClient.SendTextMessageAsync(chatId, $"Ваша група: {message.Text}.\nОберіть один з наступних пунктів:", replyMarkup: GetMainKeyboard());
                     }
+                }
                 }
                 static Task Error(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
                 {
