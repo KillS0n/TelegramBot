@@ -239,15 +239,7 @@ namespace GoogleCalendarApi
 
                                         calendarEvents.Add(calendarEvent);
                                     }
-                                    else
-                                    {
-                                        Console.WriteLine($"Подія з підсумком '{eventItem.Summary}' не належить до жодної групи користувачів.");
-                                    }
                                 }
-                            }
-                            else
-                            {
-                                Console.WriteLine($"Подія з підсумком '{eventItem.Summary}' не має достатньо інформації.");
                             }
                         }
                     }
@@ -350,52 +342,63 @@ namespace GoogleCalendarApi
                 Reminder = reminder;
             }
         }
-
+        readonly Dictionary<(long chatId, string eventKey), bool> remindersSent;
 
         //перевірка подій на 24 години і сповіщення про них за 30 хвилин до початку
-            public async Task CheckEvents()
+        public async Task CheckEvents()
+        {
+            
+            var calendar = new GoogleCalendar(userGroups);
+            var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
+                .Where(e => e.StartTime >= DateTime.Now && e.StartTime <= DateTime.Now.AddHours(24))
+                .ToList();
+
+            foreach (var e in events)
             {
-                var remindersSent = new Dictionary<int, bool>();
-                var calendar = new GoogleCalendar(userGroups);
-                var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
-        .Where(e => e.StartTime >= DateTime.Now && e.StartTime <= DateTime.Now.AddHours(24))
-                    .ToList();
-
-                foreach (var e in events)
+                foreach (var subscriber in subscribers.Select(s => new Subscriber(s.Key, s.Value)))
                 {
-                    foreach (var subscriber in subscribers.Select(s => new Subscriber(s.Key, s.Value)))
+                    // Перевірка, чи хоче користувач отримувати нагадування
+                    if (subscriber.Reminder)
                     {
-                        // Перевірка, чи хоче користувач отримувати нагадування
-                        if (subscriber.Reminder)
+                        var reminderTime = e.StartTime;
+                        var timeToEvent = reminderTime - DateTime.Now;
+
+                        // Перевірка, чи час нагадування в майбутньому
+                        if (timeToEvent.TotalMinutes > 0 && timeToEvent.TotalMinutes <= 30)
                         {
-                            var reminderTime = e.StartTime;
-                            var timeToEvent = reminderTime - DateTime.Now;
+                            var eventKey = $"{e.Subject}-{e.StartTime.Date.ToString()}";
+                            var chatId = subscriber.ChatId;
 
-                            // Перевірка, чи час нагадування в майбутньому
-                            if (timeToEvent.TotalMinutes > 0)
+                            if (!remindersSent.TryGetValue((chatId, eventKey), out var isSent) || !isSent)
                             {
-                                if (timeToEvent.TotalMinutes <= 30)
+                                if (DateTime.Now == e.StartTime)
                                 {
-                                    // Створення ключа для словника remindersSent
-                                    var key = $"{e.Subject}-{e.StartTime.Date.ToString()}";
-
-                                    // Перевірка, чи було вже виведено сповіщення для цієї пари
-                                    if (!remindersSent.ContainsKey(key.GetHashCode()))
-                                    {
-
-                                        // Send reminder message to subscriber
-                                        await client.SendTextMessageAsync(subscriber.ChatId, $"Нагадування: скоро почток наступної пари! \n\nНазва пари: {e.Subject} \nПочаток: {e.StartTime.ToShortTimeString()} - кінець: {e.EndTime.ToShortTimeString()} ,\nВикладач: {e.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(e.GoogleMeetLink) ? e.GoogleMeetLink : "Силка на пару відсутня")}\n\n");
-
-                                        // Встановлення значення флага для ключа в словнику remindersSent
-                                        remindersSent[key.GetHashCode()] = true;
-                                    }
+                                    // Send message to subscriber about event start
+                                    await client.SendTextMessageAsync(chatId, $"Починається подія: {e.Subject} о {e.StartTime.ToShortTimeString()}!");
                                 }
+                                else
+                                {
+                                    // Send reminder message to subscriber
+                                    await client.SendTextMessageAsync(chatId, $"Нагадування: скоро починається наступна пара! \n\nНазва пари: {e.Subject} \nПочаток: {e.StartTime.ToShortTimeString()} - кінець: {e.EndTime.ToShortTimeString()} ,\nВикладач: {e.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(e.GoogleMeetLink) ? e.GoogleMeetLink : "Силка на пару відсутня")}\n\n");
+                                }
+
+                                remindersSent[(chatId, eventKey)] = true;
                             }
+                        }
+                        else
+                        {
+                            // If the reminder time is in the future, mark the reminder as not sent yet
+                            var eventKey = $"{e.Subject}-{e.StartTime.Date.ToString()}";
+                            var chatId = subscriber.ChatId;
+                            remindersSent[(chatId, eventKey)] = false;
                         }
                     }
                 }
             }
-        
+        }
+
+
+
 
 
 
@@ -754,7 +757,6 @@ namespace GoogleCalendarApi
             {
                 program.CheckEvents();
                 Thread.Sleep(TimeSpan.FromSeconds(30));
-
                 // перевірка на наявність команди для зупинки
                 if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Escape)
                 {
