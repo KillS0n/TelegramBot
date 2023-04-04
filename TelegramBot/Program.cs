@@ -35,8 +35,6 @@ namespace GoogleCalendarApi
 
         // Словарь для хранения выбранной пользователем оповещания да или нет и его chat id
         public static Dictionary<long, bool> subscribers = new Dictionary<long, bool>();
-        private static TelegramBotClient botClient;
-
 
 
 
@@ -662,31 +660,25 @@ namespace GoogleCalendarApi
                             var keyboard = YesNO();
                             // Відправляємо запитання про включення сповіщень і відправляємо клавіатуру з кнопками "Так" і "Ні"
                             await botClient.SendTextMessageAsync(chatId, "Включити сповіщення?", replyMarkup: keyboard);
-
-                            // Очікуємо відповідь користувача на запитання з використанням callbackQuery
-                            var callbackQuery = update.CallbackQuery;
-
-                            
-
-                            if (callbackQuery != null)
+                        }
+                        if (message.Text != null)
+                        {
+                            // Якщо натиснута кнопка "Так"
+                            if (message.Text == "yes")
                             {
-                                // Якщо натиснута кнопка "Так"
-                                if (callbackQuery.Data == "yes")
-                                {
-                                    Program.subscribers[chatId] = true;
-                                    await botClient.SendTextMessageAsync(chatId, $"Сповіщення включено: {Program.subscribers[chatId]}");
-                                }
-                                // Якщо натиснута кнопка "Ні"
-                                else if (callbackQuery.Data == "no")
-                                {
-                                    Program.subscribers[chatId] = false;
-                                    await botClient.SendTextMessageAsync(chatId, $"Сповіщення включено: {Program.subscribers[chatId]}");
-                                }
+                                Program.subscribers[chatId] = true;
+                                await botClient.SendTextMessageAsync(chatId, $"Сповіщення включено: {Program.subscribers[chatId]}");
                             }
-                            else if (message.Text == "Повернутися назад")
+                            // Якщо натиснута кнопка "Ні"
+                            if (message.Text == "no")
                             {
-                                await botClient.SendTextMessageAsync(chatId, $"Ви обрали групу {userGroups[chatId]}.\nОберіть один з наступних пунктів:", replyMarkup: GetMainKeyboard());
+                                Program.subscribers[chatId] = false;
+                                await botClient.SendTextMessageAsync(chatId, $"Сповіщення включено: {Program.subscribers[chatId]}");
                             }
+                        }
+                        if (message.Text == "Повернутися назад")
+                        {
+                            await botClient.SendTextMessageAsync(chatId, $"Ви обрали групу {userGroups[chatId]}.\nОберіть один з наступних пунктів:", replyMarkup: GetMainKeyboard());
                         }
 
 
