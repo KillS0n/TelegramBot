@@ -300,40 +300,37 @@ namespace GoogleCalendarApi
 
 
 
-        private static void SaveUserYesNoToFile(long chatId, bool notificationSettings)
+        private static void SaveSubscribersToFile()
         {
             string filePath = "C:\\Users\\Sasha\\Desktop\\TelegramBot\\YesNO.json";
-            Dictionary<long, bool> subscribers;
+            Dictionary<long, bool> reminders;
 
             if (System.IO.File.Exists(filePath))
             {
                 string jsons = System.IO.File.ReadAllText(filePath);
                 if (!string.IsNullOrEmpty(jsons))
                 {
-                    subscribers = JsonConvert.DeserializeObject<Dictionary<long, bool>>(jsons);
+                    reminders = JsonConvert.DeserializeObject<Dictionary<long, bool>>(jsons);
                 }
                 else
                 {
-                    subscribers = new Dictionary<long, bool>();
+                    reminders = new Dictionary<long, bool>();
                 }
             }
             else
             {
-                subscribers = new Dictionary<long, bool>();
+                reminders = new Dictionary<long, bool>();
             }
 
-            if (subscribers.ContainsKey(chatId))
+            foreach (var subscriber in subscribers)
             {
-                subscribers[chatId] = notificationSettings;
-            }
-            else
-            {
-                subscribers.Add(chatId, notificationSettings);
+                reminders[subscriber.Key] = subscriber.Value;
             }
 
-            string json = JsonConvert.SerializeObject(subscribers);
+            string json = JsonConvert.SerializeObject(reminders);
             System.IO.File.WriteAllText(filePath, json);
         }
+
 
 
 
@@ -358,7 +355,7 @@ namespace GoogleCalendarApi
         //перевірка подій на 24 години і сповіщення про них за 30 хвилин до початку
         public async Task CheckEvents()
         {
-
+            var remindersSent = new Dictionary<int, bool>();
             var calendar = new GoogleCalendar(userGroups);
             var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
     .Where(e => e.StartTime >= DateTime.Now && e.StartTime <= DateTime.Now.AddHours(24))
@@ -377,12 +374,23 @@ namespace GoogleCalendarApi
                         // Перевірка, чи час нагадування в майбутньому
                         if (timeToEvent.TotalMinutes > 0)
                         {
-                            if(timeToEvent.TotalMinutes <30)
-                            // Send reminder message to subscriber
-                            await client.SendTextMessageAsync(subscriber.ChatId, $"Нагадування: почток наступної пари через 30 хвилин! \n\nНазва пари: {e.Subject} \nПочаток: {e.StartTime.ToShortTimeString()} - кінець: {e.EndTime.ToShortTimeString()} ,\nВикладач: {e.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(e.GoogleMeetLink) ? e.GoogleMeetLink : "Силка на пару відсутня")}\n\n");
-                            
-                        }
+                            if (timeToEvent.TotalMinutes <= 30)
+                            {
+                                // Створення ключа для словника remindersSent
+                                var key = $"{e.Subject}-{e.StartTime.Date.GetHashCode()}";
 
+                                // Перевірка, чи було вже виведено сповіщення для цієї пари
+                                if (!remindersSent.ContainsKey(key.GetHashCode()))
+                                {
+
+                                    // Send reminder message to subscriber
+                                    await client.SendTextMessageAsync(subscriber.ChatId, $"Нагадування: скоро почток наступної пари! \n\nНазва пари: {e.Subject} \nПочаток: {e.StartTime.ToShortTimeString()} - кінець: {e.EndTime.ToShortTimeString()} ,\nВикладач: {e.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(e.GoogleMeetLink) ? e.GoogleMeetLink : "Силка на пару відсутня")}\n\n");
+
+                                    // Встановлення значення флага для ключа в словнику remindersSent
+                                    remindersSent[key.GetHashCode()] = true;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -428,7 +436,8 @@ namespace GoogleCalendarApi
 
 
             string filePath2 = "C:\\Users\\Sasha\\Desktop\\TelegramBot\\YesNO.json";
-            Dictionary<long, bool> subscribers = new Dictionary<long, bool>();
+
+            // Зчитуємо існуючий файл, якщо він існує
             if (System.IO.File.Exists(filePath2))
             {
                 string jsons = System.IO.File.ReadAllText(filePath2);
@@ -437,10 +446,17 @@ namespace GoogleCalendarApi
                     subscribers = JsonConvert.DeserializeObject<Dictionary<long, bool>>(jsons);
                 }
             }
-            else
+
+            // Додаємо нові дані до словника
+            foreach (KeyValuePair<long, bool> subscriber in Program.subscribers)
             {
-                System.IO.File.WriteAllText(filePath2, JsonConvert.SerializeObject(subscribers));
+                subscribers[subscriber.Key] = subscriber.Value;
             }
+
+            // Записуємо оновлений словник у файл
+            string json = JsonConvert.SerializeObject(subscribers);
+            System.IO.File.WriteAllText(filePath2, json);
+
 
 
 
@@ -485,10 +501,6 @@ namespace GoogleCalendarApi
                             await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
                         }
                     }
-                    if (userGroups.ContainsKey(chatId))
-                    {
-                        Console.WriteLine($"chatId {chatId} присутній у словнику груп користувачів");
-
 
 
                         //вивід пар на сьогодні
@@ -657,16 +669,31 @@ namespace GoogleCalendarApi
                                 }
                         }
 
-                        else if (message.Text == "Отримувати сповіщення до початку пари")
+                        if (message.Text == "Отримувати сповіщення до початку пари")
                         {
+                            chatId = message.Chat.Id;
                             var groupName = userGroups[chatId];
-                            // Отримуємо об'єкт клавіатури з callback_data для кнопок "Так" і "Ні"
-                            var keyboard = YesNO();
-                            // Відправляємо запитання про включення сповіщень і відправляємо клавіатуру з кнопками "Так" і "Ні"
-                            await botClient.SendTextMessageAsync(chatId, "Включити сповіщення?", replyMarkup: keyboard);
+
+                            if (Program.subscribers.ContainsKey(chatId))
+                            {
+                                var isSubscribed = Program.subscribers[chatId];
+                                await botClient.SendTextMessageAsync(chatId, $"Ви вже маєте підписку на сповіщення: {isSubscribed}");
+                                // Отримуємо об'єкт клавіатури з callback_data для кнопок "Так" і "Ні"
+                                var keyboard = YesNO();
+                                // Відправляємо запитання про включення сповіщень і відправляємо клавіатуру з кнопками "Так" і "Ні"
+                                await botClient.SendTextMessageAsync(chatId, "Включити сповіщення?", replyMarkup: keyboard);
+                            }
+                            else
+                            {
+                                // Отримуємо об'єкт клавіатури з callback_data для кнопок "Так" і "Ні"
+                                var keyboard = YesNO();
+                                // Відправляємо запитання про включення сповіщень і відправляємо клавіатуру з кнопками "Так" і "Ні"
+                                await botClient.SendTextMessageAsync(chatId, "Включити сповіщення?", replyMarkup: keyboard);
+                            }
                         }
-                        if (message.Text != null)
+                        else if (message.Text != null)
                         {
+                            chatId = message.Chat.Id;
                             var groupName = userGroups[chatId];
                             // Якщо натиснута кнопка "Так"
                             if (message.Text == "Так")
@@ -674,6 +701,7 @@ namespace GoogleCalendarApi
                                 groupName = userGroups[chatId];
                                 Program.subscribers[chatId] = true;
                                 await botClient.SendTextMessageAsync(chatId, $"Сповіщення включено: {Program.subscribers[chatId]}");
+                                SaveSubscribersToFile();
                             }
                             // Якщо натиснута кнопка "Ні"
                             if (message.Text == "Ні")
@@ -681,6 +709,7 @@ namespace GoogleCalendarApi
                                 groupName = userGroups[chatId];
                                 Program.subscribers[chatId] = false;
                                 await botClient.SendTextMessageAsync(chatId, $"Сповіщення включено: {Program.subscribers[chatId]}");
+                                SaveSubscribersToFile();
                             }
                         }
                         if (message.Text == "Повернутися назад")
@@ -695,11 +724,6 @@ namespace GoogleCalendarApi
                             userGroups.Remove(chatId);
                             await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
                         }
-                    }
-                    else
-                    {
-                        Console.WriteLine($"chatId {chatId} відсутній у словнику userGroups»");
-                    }
                     if (message.Text != null && groupNames.Contains(message.Text))
                         {
                             userGroups[chatId] = message.Text;
@@ -714,23 +738,26 @@ namespace GoogleCalendarApi
             }
 
             Program program = new Program();
-            while (true)
+            bool keepRunning = true;
+            while (keepRunning)
             {
                 program.CheckEvents();
                 Thread.Sleep(TimeSpan.FromSeconds(30));
+
+                // перевірка на наявність команди для зупинки
+                if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Escape)
+                {
+                    keepRunning = false;
+                }
             }
+
+            Console.WriteLine("Цикл зупинений");
 
             Console.ReadLine();
             Console.WriteLine("Натисніть будь-яку кнопку, щоб продовжити...");
             foreach (KeyValuePair<long, string> userGroup in userGroups)
             {
                 SaveUserGroupToFile(userGroup.Key, userGroup.Value);
-            }
-
-            program = new Program();
-            foreach (KeyValuePair<long, bool> subscriber in subscribers)
-            {
-               SaveUserYesNoToFile(subscriber.Key, subscriber.Value);
             }
 
 
