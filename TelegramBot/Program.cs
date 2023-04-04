@@ -20,6 +20,7 @@ using System.Globalization;
 using static Google.Apis.Calendar.v3.Data.ConferenceData;
 using Newtonsoft.Json;
 using System.IO;
+using static GoogleCalendarApi.Program;
 
 namespace GoogleCalendarApi
 {
@@ -31,6 +32,11 @@ namespace GoogleCalendarApi
 
         // Словарь для хранения выбранной пользователем группы и его chat id
         static Dictionary<long, string> userGroups = new Dictionary<long, string>();
+
+        // Словарь для хранения выбранной пользователем оповещания да или нет и его chat id
+        public static Dictionary<long, bool> subscribers = new Dictionary<long, bool>();
+        private static TelegramBotClient botClient;
+
 
 
 
@@ -52,6 +58,7 @@ namespace GoogleCalendarApi
         },
         new[]
         {
+            new KeyboardButton("Отримувати сповіщення до початку пари"),
             new KeyboardButton("Змінити групу"),
         },
     });
@@ -93,6 +100,24 @@ namespace GoogleCalendarApi
             return keyboard;
         }
 
+
+        //метод для створення клавіатур чи отримувати сповіщення про початок подіїї
+        private static ReplyKeyboardMarkup YesNO()
+        {
+            var keyboard = new ReplyKeyboardMarkup(new[]
+            {
+        new[]
+        {
+            new KeyboardButton("Так"),
+            new KeyboardButton("Ні"),
+        },
+        new[]
+        {
+            new KeyboardButton("Повернутися назад"),
+        },
+    });
+            return keyboard;
+        }
 
 
         //запис даних про подію
@@ -275,11 +300,93 @@ namespace GoogleCalendarApi
 
 
 
+
+
+        private static void SaveUserYesNoToFile(long chatId, bool notificationSettings)
+        {
+            string filePath = "C:\\Users\\Sasha\\Desktop\\TelegramBot\\YesNO.json";
+            Dictionary<long, bool> subscribers;
+
+            if (System.IO.File.Exists(filePath))
+            {
+                string jsons = System.IO.File.ReadAllText(filePath);
+                if (!string.IsNullOrEmpty(jsons))
+                {
+                    subscribers = JsonConvert.DeserializeObject<Dictionary<long, bool>>(jsons);
+                }
+                else
+                {
+                    subscribers = new Dictionary<long, bool>();
+                }
+            }
+            else
+            {
+                subscribers = new Dictionary<long, bool>();
+            }
+
+            if (subscribers.ContainsKey(chatId))
+            {
+                subscribers[chatId] = notificationSettings;
+            }
+            else
+            {
+                subscribers.Add(chatId, notificationSettings);
+            }
+
+            string json = JsonConvert.SerializeObject(subscribers);
+            System.IO.File.WriteAllText(filePath, json);
+        }
+
+
+
+
+
+
+
+
+        public class Subscriber
+        {
+            public long ChatId { get; set; }
+            public bool Reminder { get; set; }
+
+            public Subscriber(long chatId, bool reminder)
+            {
+                ChatId = chatId;
+                Reminder = reminder;
+            }
+        }
+
+
         //перевірка подій на 24 години і сповіщення про них за 30 хвилин до початку
         public async Task CheckEvents()
         {
 
+            var calendar = new GoogleCalendar(userGroups);
+            var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
+                .Where(e => e.StartTime >= DateTime.Now && e.StartTime <= DateTime.Now.AddHours(24))
+                .ToList();
+
+            foreach (var e in events)
+            {
+                foreach (var subscriber in subscribers.Select(s => new Subscriber(s.Key, s.Value)))
+                {
+                    // Check if subscriber wants to receive reminders
+                    if (subscriber.Reminder)
+                    {
+                        var reminderTime = e.StartTime.AddMinutes(-30);
+                        var timeToEvent = reminderTime - DateTime.Now;
+
+                        // Check if reminder time is in the future
+                        if (timeToEvent.TotalMinutes > 0)
+                        {
+                            // Send reminder message to subscriber
+                            await client.SendTextMessageAsync(subscriber.ChatId, $"Нагадування: почток наступної пари через 30 хвилин! \n\nНазва пари: {e.Subject} \nПочаток: {e.StartTime.ToShortTimeString()} - кінець: {e.EndTime.ToShortTimeString()} ,\nВикладач: {e.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(e.GoogleMeetLink) ? e.GoogleMeetLink : "Силка на пару відсутня")}\n\n");
+                        }
+                    }
+                }
+            }
         }
+        
 
 
 
@@ -299,6 +406,7 @@ namespace GoogleCalendarApi
 
             // Зчитування словника з файлу JSON
             string filePath = "C:\\Users\\Sasha\\Desktop\\TelegramBot\\user_Group.json";
+            
             if (System.IO.File.Exists(filePath))
             {
                 string jsons = System.IO.File.ReadAllText(filePath);
@@ -315,6 +423,24 @@ namespace GoogleCalendarApi
             {
                 userGroups = new Dictionary<long, string>();
             }
+
+
+
+            string filePath2 = "C:\\Users\\Sasha\\Desktop\\TelegramBot\\YesNO.json";
+            Dictionary<long, bool> subscribers = new Dictionary<long, bool>();
+            if (System.IO.File.Exists(filePath2))
+            {
+                string jsons = System.IO.File.ReadAllText(filePath2);
+                if (!string.IsNullOrEmpty(jsons))
+                {
+                    subscribers = JsonConvert.DeserializeObject<Dictionary<long, bool>>(jsons);
+                }
+            }
+            else
+            {
+                System.IO.File.WriteAllText(filePath2, JsonConvert.SerializeObject(subscribers));
+            }
+
 
 
 
@@ -361,6 +487,9 @@ namespace GoogleCalendarApi
                     if (userGroups.ContainsKey(chatId))
                     {
                         Console.WriteLine($"chatId {chatId} присутній у словнику груп користувачів");
+
+
+
                         //вивід пар на сьогодні
                         if (message.Text == "Вивести розклад на сьогодні")
                         {
@@ -527,6 +656,38 @@ namespace GoogleCalendarApi
                                 }
                         }
 
+                        else if (message.Text == "Отримувати сповіщення до початку пари")
+                        {
+                            // Отримуємо об'єкт клавіатури з callback_data для кнопок "Так" і "Ні"
+                            var keyboard = YesNO();
+                            // Відправляємо запитання про включення сповіщень і відправляємо клавіатуру з кнопками "Так" і "Ні"
+                            await botClient.SendTextMessageAsync(chatId, "Включити сповіщення?", replyMarkup: keyboard);
+
+                            // Очікуємо відповідь користувача на запитання з використанням callbackQuery
+                            var callbackQuery = update.CallbackQuery;
+
+                            
+
+                            if (callbackQuery != null)
+                            {
+                                // Якщо натиснута кнопка "Так"
+                                if (callbackQuery.Data == "yes")
+                                {
+                                    Program.subscribers[chatId] = true;
+                                    await botClient.SendTextMessageAsync(chatId, $"Сповіщення включено: {Program.subscribers[chatId]}");
+                                }
+                                // Якщо натиснута кнопка "Ні"
+                                else if (callbackQuery.Data == "no")
+                                {
+                                    Program.subscribers[chatId] = false;
+                                    await botClient.SendTextMessageAsync(chatId, $"Сповіщення включено: {Program.subscribers[chatId]}");
+                                }
+                            }
+                            else if (message.Text == "Повернутися назад")
+                            {
+                                await botClient.SendTextMessageAsync(chatId, $"Ви обрали групу {userGroups[chatId]}.\nОберіть один з наступних пунктів:", replyMarkup: GetMainKeyboard());
+                            }
+                        }
 
 
                         else if (message.Text == "Змінити групу")
@@ -559,7 +720,17 @@ namespace GoogleCalendarApi
             {
                 SaveUserGroupToFile(userGroup.Key, userGroup.Value);
             }
+
+            Program program = new Program();
+            foreach (KeyValuePair<long, bool> subscriber in subscribers)
+            {
+               SaveUserYesNoToFile(subscriber.Key, subscriber.Value);
+            }
+
+
+
             Console.ReadLine();
             }
         }
     }
+
