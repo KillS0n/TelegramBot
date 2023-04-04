@@ -361,25 +361,28 @@ namespace GoogleCalendarApi
 
             var calendar = new GoogleCalendar(userGroups);
             var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
-    .Where(e => e.StartTime >= DateTime.Now && e.StartTime <= DateTime.Now.AddMinutes(30))
-    .ToList();
+    .Where(e => e.StartTime >= DateTime.Now && e.StartTime <= DateTime.Now.AddHours(24))
+                .ToList();
 
             foreach (var e in events)
             {
                 foreach (var subscriber in subscribers.Select(s => new Subscriber(s.Key, s.Value)))
                 {
-                    // Check if subscriber wants to receive reminders
+                    // Перевірка, чи хоче користувач отримувати нагадування
                     if (subscriber.Reminder)
                     {
                         var reminderTime = e.StartTime.AddMinutes(-30);
                         var timeToEvent = reminderTime - DateTime.Now;
 
-                        // Check if reminder time is in the future
+                        // Перевірка, чи час нагадування в майбутньому
                         if (timeToEvent.TotalMinutes > 0)
                         {
+                            if(timeToEvent.TotalMinutes <30)
                             // Send reminder message to subscriber
                             await client.SendTextMessageAsync(subscriber.ChatId, $"Нагадування: почток наступної пари через 30 хвилин! \n\nНазва пари: {e.Subject} \nПочаток: {e.StartTime.ToShortTimeString()} - кінець: {e.EndTime.ToShortTimeString()} ,\nВикладач: {e.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(e.GoogleMeetLink) ? e.GoogleMeetLink : "Силка на пару відсутня")}\n\n");
+                            
                         }
+
                     }
                 }
             }
