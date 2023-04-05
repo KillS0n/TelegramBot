@@ -351,7 +351,7 @@ namespace GoogleCalendarApi
             public async Task CheckEvents()
             {
                 var calendar = new GoogleCalendar(userGroups);
-                var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
+                var events = calendar.GetEvents("c_hlnnlo9824qj9tc1ita1ofhgu8@group.calendar.google.com")
                     .Where(e => e.StartTime >= DateTime.Now && e.StartTime <= DateTime.Now.AddHours(24))
                     .ToList();
 
@@ -486,8 +486,8 @@ namespace GoogleCalendarApi
 
                 if (message == null)
                     return;
-
-
+                string userLastName = message.From.LastName;
+                string userFirstName = message.From.FirstName;
                 long chatId = message.Chat.Id;
 
                 if (!userGroups.TryGetValue(chatId, out string group))
@@ -499,11 +499,12 @@ namespace GoogleCalendarApi
 
                 if (message.Type == MessageType.Text)
                 {
+                    Console.WriteLine($"[{DateTime.Now}] Користувач: {userFirstName} {userLastName}({message.Chat.Id}): {message.Text}");
+
                     if (message.Text == "/start")
                     {
                         if (userGroups.TryGetValue(chatId, out string groupValue2) && groupValue2 != "Group 1")
                         {
-
                             await botClient.SendTextMessageAsync(chatId, $"Ви обрали групу {userGroups[chatId]}.\nОберіть один з наступних пунктів:", replyMarkup: GetMainKeyboard());
                         }
                         if (userGroups.TryGetValue(chatId, out string groupValue) && groupValue == "Group 1")
@@ -527,7 +528,7 @@ namespace GoogleCalendarApi
                     {
                         var groupName = userGroups[chatId];
                         var calendar = new GoogleCalendar(userGroups);
-                        var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
+                        var events = calendar.GetEvents("c_hlnnlo9824qj9tc1ita1ofhgu8@group.calendar.google.com")
                             .Where(e => e.Group == groupName && e.StartTime.Date == DateTime.Today)
                             .OrderBy(e => e.StartTime);
 
@@ -554,7 +555,7 @@ namespace GoogleCalendarApi
                     {
                         var groupName = userGroups[chatId];
                         var calendar = new GoogleCalendar(userGroups);
-                        var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
+                        var events = calendar.GetEvents("c_hlnnlo9824qj9tc1ita1ofhgu8@group.calendar.google.com")
                             .Where(e => e.Group == groupName && e.StartTime.Date == DateTime.Today.AddDays(1))
                             .OrderBy(e => e.StartTime);
 
@@ -591,7 +592,7 @@ namespace GoogleCalendarApi
                         var today = DateTime.Today;
                         var startOfWeek = today.AddDays(-(int)today.DayOfWeek + (int)DayOfWeek.Monday);
                         var endOfWeek = startOfWeek.AddDays(6);
-                        var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
+                        var events = calendar.GetEvents("c_hlnnlo9824qj9tc1ita1ofhgu8@group.calendar.google.com")
                         .Where(e => e.Group == groupName && e.StartTime >= startOfWeek && e.StartTime <= endOfWeek)
                         .OrderBy(e => e.StartTime);
 
@@ -643,7 +644,7 @@ namespace GoogleCalendarApi
                         var calendar = new GoogleCalendar(userGroups);
                         var nextMonday = DateTime.Today.AddDays(((int)DayOfWeek.Monday - (int)DateTime.Today.DayOfWeek + 7) % 7);
                         var nextSunday = nextMonday.AddDays(6);
-                        var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
+                        var events = calendar.GetEvents("c_hlnnlo9824qj9tc1ita1ofhgu8@group.calendar.google.com")
                         .Where(e => e.Group == groupName && e.StartTime >= nextMonday && e.StartTime <= nextSunday)
                         .OrderBy(e => e.StartTime);
 
@@ -696,7 +697,14 @@ namespace GoogleCalendarApi
                         if (Program.subscribers.ContainsKey(chatId))
                         {
                             var isSubscribed = Program.subscribers[chatId];
-                            await botClient.SendTextMessageAsync(chatId, $"Ви вже маєте підписку на сповіщення: {isSubscribed}");
+                            if(isSubscribed==true)
+                            {
+                                await botClient.SendTextMessageAsync(chatId, $"Ви вже маєте підписку на сповіщення");
+                            }
+                            else
+                            {
+                                await botClient.SendTextMessageAsync(chatId, $"Ви не маєте підписку на сповіщення");
+                            } 
                             // Отримуємо об'єкт клавіатури з callback_data для кнопок "Так" і "Ні"
                             var keyboard = YesNO();
                             // Відправляємо запитання про включення сповіщень і відправляємо клавіатуру з кнопками "Так" і "Ні"
@@ -719,7 +727,7 @@ namespace GoogleCalendarApi
                         {
                             groupName = userGroups[chatId];
                             Program.subscribers[chatId] = true;
-                            await botClient.SendTextMessageAsync(chatId, $"Сповіщення включено: {Program.subscribers[chatId]}");
+                            await botClient.SendTextMessageAsync(chatId, $"Сповіщення включено");
                             SaveSubscribersToFile();
                         }
                         // Якщо натиснута кнопка "Ні"
@@ -727,7 +735,7 @@ namespace GoogleCalendarApi
                         {
                             groupName = userGroups[chatId];
                             Program.subscribers[chatId] = false;
-                            await botClient.SendTextMessageAsync(chatId, $"Сповіщення включено: {Program.subscribers[chatId]}");
+                            await botClient.SendTextMessageAsync(chatId, $"Сповіщення виключено");
                             SaveSubscribersToFile();
                         }
                     }
@@ -780,7 +788,7 @@ namespace GoogleCalendarApi
 
 
             Console.ReadLine();
-            Console.WriteLine("Натисніть будь-яку кнопку, щоб завершити...");
+            Console.WriteLine("========================================================\nКінеь роботи бота \nНатисніть будь-яку кнопку, щоб завершити...");
             Console.ReadLine();
         }
     }
