@@ -159,7 +159,7 @@ namespace GoogleCalendarApi
                 try
                 {
                     GoogleCredential credential;
-                    using (var stream = new FileStream("C:\\Users\\Sasha\\Desktop\\TelegramBot/telegrambot-363818-c5afa8c735d4.json", FileMode.Open, FileAccess.Read))
+                    using (var stream = new FileStream("telegrambot-363818-c5afa8c735d4.json", FileMode.Open, FileAccess.Read))
                     {
                         credential = GoogleCredential.FromStream(stream)
                             .CreateScoped(Scopes);
@@ -255,7 +255,7 @@ namespace GoogleCalendarApi
         //збереження в файл JSON
         private static void SaveUserGroupToFile(long chatId, string groupName)
         {
-            string filePath = "C:\\Users\\Sasha\\Desktop\\TelegramBot\\user_Group.json";
+            string filePath = "user_Group.json";
             Dictionary<long, string> userGroups;
 
             if (System.IO.File.Exists(filePath))
@@ -294,7 +294,7 @@ namespace GoogleCalendarApi
 
         private static void SaveSubscribersToFile()
         {
-            string filePath = "C:\\Users\\Sasha\\Desktop\\TelegramBot\\YesNO.json";
+            string filePath = "YesNO.json";
             Dictionary<long, bool> reminders;
 
             if (System.IO.File.Exists(filePath))
@@ -420,8 +420,8 @@ namespace GoogleCalendarApi
 
 
             // Зчитування словника з файлу JSON
-            string filePath = "C:\\Users\\Sasha\\Desktop\\TelegramBot\\user_Group.json";
-            
+            string filePath = "user_Group.json";
+
             if (System.IO.File.Exists(filePath))
             {
                 string jsons = System.IO.File.ReadAllText(filePath);
@@ -441,7 +441,7 @@ namespace GoogleCalendarApi
 
 
 
-            string filePath2 = "C:\\Users\\Sasha\\Desktop\\TelegramBot\\YesNO.json";
+            string filePath2 = "YesNO.json";
 
             // Зчитуємо існуючий файл, якщо він існує
             if (System.IO.File.Exists(filePath2))
@@ -471,21 +471,21 @@ namespace GoogleCalendarApi
 
             //старт телеграм бота
             client = new TelegramBotClient(token);
-                client.StartReceiving(Update, Error);
+            client.StartReceiving(Update, Error);
 
 
 
 
-                async static Task Update(ITelegramBotClient botClient, Update update, CancellationToken token)
-                {
-                    var groupNames = new List<string> { "ПІ-91", "ПІ-20", "ПІ-21", "ПІ-22", "КН-19", "КН-20", "КН-21", "КН-22", "ІН-19", "ІН-21", "ІН-22" };
-                    if (update == null)
-                        return;
+            async static Task Update(ITelegramBotClient botClient, Update update, CancellationToken token)
+            {
+                var groupNames = new List<string> { "ПІ-91", "ПІ-20", "ПІ-21", "ПІ-22", "КН-91", "КН-20", "КН-21", "КН-22", "ІН-91", "ІН-20", "ІН-21", "ІН-22" };
+                if (update == null)
+                    return;
 
-                    var message = update.Message;
+                var message = update.Message;
 
-                    if (message == null)
-                        return;
+                if (message == null)
+                    return;
 
 
                 long chatId = message.Chat.Id;
@@ -509,19 +509,57 @@ namespace GoogleCalendarApi
                         if (userGroups.TryGetValue(chatId, out string groupValue) && groupValue == "Group 1")
                         {
                             await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
+                            if (groupNames.Contains(message.Text))
+                            {
+                                SaveUserGroupToFile(chatId, message.Text);
+                            }
+                        }
+                    }
+
+                    if (groupNames.Contains(message.Text))
+                    {
+                        SaveUserGroupToFile(chatId, message.Text);
+                    }
+
+
+                    //вивід пар на сьогодні
+                    if (message.Text == "Вивести розклад на сьогодні")
+                    {
+                        var groupName = userGroups[chatId];
+                        var calendar = new GoogleCalendar(userGroups);
+                        var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
+                            .Where(e => e.Group == groupName && e.StartTime.Date == DateTime.Today)
+                            .OrderBy(e => e.StartTime);
+
+                        if (events.Any())
+                        {
+                            var messageToSend = $"Розклад для групи {groupName} на {DateTime.Today.ToShortDateString()}:\n";
+
+                            foreach (var ev in events)
+                            {
+                                messageToSend += $"Назва пари: {ev.Subject} \nПочаток: {ev.StartTime.ToShortTimeString()} - кінець: {ev.EndTime.ToShortTimeString()} ,\nВикладач: {ev.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(ev.GoogleMeetLink) ? ev.GoogleMeetLink : "Силка на пару відсутня")}\n\n";
+                            }
+
+                            await botClient.SendTextMessageAsync(chatId, messageToSend);
+                        }
+                        else
+                        {
+                            await botClient.SendTextMessageAsync(chatId, $"На сьогодні для групи {groupName} немає подій у календарі.");
                         }
                     }
 
 
-                        //вивід пар на сьогодні
-                        if (message.Text == "Вивести розклад на сьогодні")
-                        {
-                            var groupName = userGroups[chatId];
-                            var calendar = new GoogleCalendar(userGroups);
-                            var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
-                                .Where(e => e.Group == groupName && e.StartTime.Date == DateTime.Today)
-                                .OrderBy(e => e.StartTime);
+                    //вивід пар на завтра
+                    else if (message.Text == "Вивести розклад на завтра")
+                    {
+                        var groupName = userGroups[chatId];
+                        var calendar = new GoogleCalendar(userGroups);
+                        var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
+                            .Where(e => e.Group == groupName && e.StartTime.Date == DateTime.Today.AddDays(1))
+                            .OrderBy(e => e.StartTime);
 
+                        if (userGroups.ContainsKey(chatId))
+                        {
                             if (events.Any())
                             {
                                 var messageToSend = $"Розклад для групи {groupName} на {DateTime.Today.ToShortDateString()}:\n";
@@ -535,205 +573,180 @@ namespace GoogleCalendarApi
                             }
                             else
                             {
-                                await botClient.SendTextMessageAsync(chatId, $"На сьогодні для групи {groupName} немає подій у календарі.");
+                                await botClient.SendTextMessageAsync(chatId, $"На завтра для групи {groupName} немає подій у календарі.");
                             }
                         }
-
-
-                        //вивід пар на завтра
-                        else if (message.Text == "Вивести розклад на завтра")
+                        else
                         {
-                            var groupName = userGroups[chatId];
-                            var calendar = new GoogleCalendar(userGroups);
-                            var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
-                                .Where(e => e.Group == groupName && e.StartTime.Date == DateTime.Today.AddDays(1))
-                                .OrderBy(e => e.StartTime);
-
-                            if (userGroups.ContainsKey(chatId))
-                            {
-                                if (events.Any())
-                                {
-                                    var messageToSend = $"Розклад для групи {groupName} на {DateTime.Today.ToShortDateString()}:\n";
-
-                                    foreach (var ev in events)
-                                    {
-                                        messageToSend += $"Назва пари: {ev.Subject} \nПочаток: {ev.StartTime.ToShortTimeString()} - кінець: {ev.EndTime.ToShortTimeString()} ,\nВикладач: {ev.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(ev.GoogleMeetLink) ? ev.GoogleMeetLink : "Силка на пару відсутня")}\n\n";
-                                    }
-
-                                    await botClient.SendTextMessageAsync(chatId, messageToSend);
-                                }
-                                else
-                                {
-                                    await botClient.SendTextMessageAsync(chatId, $"На завтра для групи {groupName} немає подій у календарі.");
-                                }
-                            }
-                            else
-                            {
-                                await botClient.SendTextMessageAsync(chatId, "Ви не вибрали групу виберіть х:", replyMarkup: GetGroupKeyboard());
-                            }
+                            await botClient.SendTextMessageAsync(chatId, "Ви не вибрали групу виберіть х:", replyMarkup: GetGroupKeyboard());
                         }
+                    }
 
 
-                        //вивід пар поточний тиждень
-                        else if (message.Text == "Вивести розклад на поточний тиждень")
+                    //вивід пар поточний тиждень
+                    else if (message.Text == "Вивести розклад на поточний тиждень")
+                    {
+                        var groupName = userGroups[chatId];
+                        var calendar = new GoogleCalendar(userGroups);
+                        var today = DateTime.Today;
+                        var startOfWeek = today.AddDays(-(int)today.DayOfWeek + (int)DayOfWeek.Monday);
+                        var endOfWeek = startOfWeek.AddDays(6);
+                        var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
+                        .Where(e => e.Group == groupName && e.StartTime >= startOfWeek && e.StartTime <= endOfWeek)
+                        .OrderBy(e => e.StartTime);
+
+                        if (events.Any())
                         {
-                            var groupName = userGroups[chatId];
-                            var calendar = new GoogleCalendar(userGroups);
-                            var today = DateTime.Today;
-                            var startOfWeek = today.AddDays(-(int)today.DayOfWeek + (int)DayOfWeek.Monday);
-                            var endOfWeek = startOfWeek.AddDays(6);
-                            var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
-                            .Where(e => e.Group == groupName && e.StartTime >= startOfWeek && e.StartTime <= endOfWeek)
-                            .OrderBy(e => e.StartTime);
+                            var scheduleByDay = new Dictionary<DayOfWeek, List<string>>();
+                            scheduleByDay[DayOfWeek.Monday] = new List<string>();
+                            scheduleByDay[DayOfWeek.Tuesday] = new List<string>();
+                            scheduleByDay[DayOfWeek.Wednesday] = new List<string>();
+                            scheduleByDay[DayOfWeek.Thursday] = new List<string>();
+                            scheduleByDay[DayOfWeek.Friday] = new List<string>();
+                            scheduleByDay[DayOfWeek.Saturday] = new List<string>();
+                            scheduleByDay[DayOfWeek.Sunday] = new List<string>();
 
-                            if (events.Any())
+                            foreach (var ev in events)
                             {
-                                var scheduleByDay = new Dictionary<DayOfWeek, List<string>>();
-                                scheduleByDay[DayOfWeek.Monday] = new List<string>();
-                                scheduleByDay[DayOfWeek.Tuesday] = new List<string>();
-                                scheduleByDay[DayOfWeek.Wednesday] = new List<string>();
-                                scheduleByDay[DayOfWeek.Thursday] = new List<string>();
-                                scheduleByDay[DayOfWeek.Friday] = new List<string>();
-                                scheduleByDay[DayOfWeek.Saturday] = new List<string>();
-                                scheduleByDay[DayOfWeek.Sunday] = new List<string>();
+                                var dayOfWeek = ev.StartTime.DayOfWeek;
+                                var formattedEvent = $"Назва пари: {ev.Subject} \nПочаток: {ev.StartTime.ToShortTimeString()} - кінець: {ev.EndTime.ToShortTimeString()} ,\nВикладач: {ev.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(ev.GoogleMeetLink) ? ev.GoogleMeetLink : "Силка на пару відсутня")}\n";
 
-                                foreach (var ev in events)
+                                scheduleByDay[dayOfWeek].Add(formattedEvent);
+                            }
+
+                            var messageToSend = $"Розклад для групи {groupName} на поточний тиждень \nТобто з понеділка {startOfWeek.ToShortDateString()} по неділю {endOfWeek.ToShortDateString()}\n";
+
+                            foreach (var pair in scheduleByDay)
+                            {
+                                if (pair.Value.Any())
                                 {
-                                    var dayOfWeek = ev.StartTime.DayOfWeek;
-                                    var formattedEvent = $"Назва пари: {ev.Subject} \nПочаток: {ev.StartTime.ToShortTimeString()} - кінець: {ev.EndTime.ToShortTimeString()} ,\nВикладач: {ev.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(ev.GoogleMeetLink) ? ev.GoogleMeetLink : "Силка на пару відсутня")}\n";
+                                    var dayOfWeekName = CultureInfo.CurrentCulture.DateTimeFormat.GetDayName(pair.Key);
+                                    var eventsForDay = string.Join("\n", pair.Value);
 
-                                    scheduleByDay[dayOfWeek].Add(formattedEvent);
+                                    messageToSend += $"\n{dayOfWeekName}:\n{eventsForDay}\n";
                                 }
+                            }
 
-                                var messageToSend = $"Розклад для групи {groupName} на поточний тиждень \nТобто з понеділка {startOfWeek.ToShortDateString()} по неділю {endOfWeek.ToShortDateString()}\n";
+                            await botClient.SendTextMessageAsync(chatId, messageToSend);
+                        }
+                        else
+                        {
+                            await botClient.SendTextMessageAsync(chatId, $"На поточний тиждень для групи {groupName} немає подій у календарі.");
+                        }
+                    }
 
-                                foreach (var pair in scheduleByDay)
+
+                    //вивід пар на наступний тиждень
+                    else if (message.Text == "Вивести розклад на наступний тиждень")
+                    {
+                        var groupName = userGroups[chatId];
+                        var calendar = new GoogleCalendar(userGroups);
+                        var nextMonday = DateTime.Today.AddDays(((int)DayOfWeek.Monday - (int)DateTime.Today.DayOfWeek + 7) % 7);
+                        var nextSunday = nextMonday.AddDays(6);
+                        var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
+                        .Where(e => e.Group == groupName && e.StartTime >= nextMonday && e.StartTime <= nextSunday)
+                        .OrderBy(e => e.StartTime);
+
+
+                        if (events.Any())
+                        {
+                            var scheduleByDay = new Dictionary<DayOfWeek, List<string>>();
+                            scheduleByDay[DayOfWeek.Monday] = new List<string>();
+                            scheduleByDay[DayOfWeek.Tuesday] = new List<string>();
+                            scheduleByDay[DayOfWeek.Wednesday] = new List<string>();
+                            scheduleByDay[DayOfWeek.Thursday] = new List<string>();
+                            scheduleByDay[DayOfWeek.Friday] = new List<string>();
+                            scheduleByDay[DayOfWeek.Saturday] = new List<string>();
+                            scheduleByDay[DayOfWeek.Sunday] = new List<string>();
+
+                            foreach (var ev in events)
+                            {
+                                var dayOfWeek = ev.StartTime.DayOfWeek;
+                                var formattedEvent = $"Назва пари: {ev.Subject} \nПочаток: {ev.StartTime.ToShortTimeString()} - кінець: {ev.EndTime.ToShortTimeString()} ,\nВикладач: {ev.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(ev.GoogleMeetLink) ? ev.GoogleMeetLink : "Силка на пару відсутня")}\n";
+
+                                scheduleByDay[dayOfWeek].Add(formattedEvent);
+                            }
+
+                            var messageToSend = $"Розклад для групи {groupName} на наступний тиждень \nТобто з понеділка {nextMonday.ToShortDateString()} по неділю {nextSunday.ToShortDateString()}:\n";
+
+                            foreach (var pair in scheduleByDay)
+                            {
+                                if (pair.Value.Any())
                                 {
-                                    if (pair.Value.Any())
-                                    {
-                                        var dayOfWeekName = CultureInfo.CurrentCulture.DateTimeFormat.GetDayName(pair.Key);
-                                        var eventsForDay = string.Join("\n", pair.Value);
+                                    var dayOfWeekName = CultureInfo.CurrentCulture.DateTimeFormat.GetDayName(pair.Key);
+                                    var eventsForDay = string.Join("\n", pair.Value);
 
-                                        messageToSend += $"\n{dayOfWeekName}:\n{eventsForDay}\n";
-                                    }
+                                    messageToSend += $"\n{dayOfWeekName}:\n{eventsForDay}\n";
                                 }
-
-                                await botClient.SendTextMessageAsync(chatId, messageToSend);
                             }
-                            else
-                            {
-                                await botClient.SendTextMessageAsync(chatId, $"На поточний тиждень для групи {groupName} немає подій у календарі.");
-                            }
+
+                            await botClient.SendTextMessageAsync(chatId, messageToSend);
                         }
-
-
-                        //вивід пар на наступний тиждень
-                            else if (message.Text == "Вивести розклад на наступний тиждень")
-                            {
-                                var groupName = userGroups[chatId];
-                                var calendar = new GoogleCalendar(userGroups);
-                                var nextMonday = DateTime.Today.AddDays(((int)DayOfWeek.Monday - (int)DateTime.Today.DayOfWeek + 7) % 7);
-                                var nextSunday = nextMonday.AddDays(6);
-                                var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
-                                .Where(e => e.Group == groupName && e.StartTime >= nextMonday && e.StartTime <= nextSunday)
-                                .OrderBy(e => e.StartTime);
-
-
-                            if (events.Any())
-                                {
-                                    var scheduleByDay = new Dictionary<DayOfWeek, List<string>>();
-                                    scheduleByDay[DayOfWeek.Monday] = new List<string>();
-                                    scheduleByDay[DayOfWeek.Tuesday] = new List<string>();
-                                    scheduleByDay[DayOfWeek.Wednesday] = new List<string>();
-                                    scheduleByDay[DayOfWeek.Thursday] = new List<string>();
-                                    scheduleByDay[DayOfWeek.Friday] = new List<string>();
-                                    scheduleByDay[DayOfWeek.Saturday] = new List<string>();
-                                    scheduleByDay[DayOfWeek.Sunday] = new List<string>();
-
-                                    foreach (var ev in events)
-                                    {
-                                        var dayOfWeek = ev.StartTime.DayOfWeek;
-                                        var formattedEvent = $"Назва пари: {ev.Subject} \nПочаток: {ev.StartTime.ToShortTimeString()} - кінець: {ev.EndTime.ToShortTimeString()} ,\nВикладач: {ev.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(ev.GoogleMeetLink) ? ev.GoogleMeetLink : "Силка на пару відсутня")}\n";
-
-                                        scheduleByDay[dayOfWeek].Add(formattedEvent);
-                                    }
-
-                                    var messageToSend = $"Розклад для групи {groupName} на наступний тиждень \nТобто з понеділка {nextMonday.ToShortDateString()} по неділю {nextSunday.ToShortDateString()}:\n";
-
-                                    foreach (var pair in scheduleByDay)
-                                    {
-                                        if (pair.Value.Any())
-                                        {
-                                            var dayOfWeekName = CultureInfo.CurrentCulture.DateTimeFormat.GetDayName(pair.Key);
-                                            var eventsForDay = string.Join("\n", pair.Value);
-
-                                            messageToSend += $"\n{dayOfWeekName}:\n{eventsForDay}\n";
-                                        }
-                                    }
-
-                                    await botClient.SendTextMessageAsync(chatId, messageToSend);
-                                }
-                                else
-                                {
-                                    await botClient.SendTextMessageAsync(chatId, $"На наступний тиждень для групи {groupName} немає подій у календарі.");
-                                }
-                        }
-
-                        if (message.Text == "Отримувати сповіщення до початку пари")
+                        else
                         {
-                            chatId = message.Chat.Id;
-                            var groupName = userGroups[chatId];
+                            await botClient.SendTextMessageAsync(chatId, $"На наступний тиждень для групи {groupName} немає подій у календарі.");
+                        }
+                    }
 
-                            if (Program.subscribers.ContainsKey(chatId))
-                            {
-                                var isSubscribed = Program.subscribers[chatId];
-                                await botClient.SendTextMessageAsync(chatId, $"Ви вже маєте підписку на сповіщення: {isSubscribed}");
-                                // Отримуємо об'єкт клавіатури з callback_data для кнопок "Так" і "Ні"
-                                var keyboard = YesNO();
-                                // Відправляємо запитання про включення сповіщень і відправляємо клавіатуру з кнопками "Так" і "Ні"
-                                await botClient.SendTextMessageAsync(chatId, "Включити сповіщення?", replyMarkup: keyboard);
-                            }
-                            else
-                            {
-                                // Отримуємо об'єкт клавіатури з callback_data для кнопок "Так" і "Ні"
-                                var keyboard = YesNO();
-                                // Відправляємо запитання про включення сповіщень і відправляємо клавіатуру з кнопками "Так" і "Ні"
-                                await botClient.SendTextMessageAsync(chatId, "Включити сповіщення?", replyMarkup: keyboard);
-                            }
-                        }
-                        else if (message.Text != null)
+                    if (message.Text == "Отримувати сповіщення до початку пари")
+                    {
+                        chatId = message.Chat.Id;
+                        var groupName = userGroups[chatId];
+
+                        if (Program.subscribers.ContainsKey(chatId))
                         {
-                            chatId = message.Chat.Id;
-                            var groupName = userGroups[chatId];
-                            // Якщо натиснута кнопка "Так"
-                            if (message.Text == "Так")
-                            {
-                                groupName = userGroups[chatId];
-                                Program.subscribers[chatId] = true;
-                                await botClient.SendTextMessageAsync(chatId, $"Сповіщення включено: {Program.subscribers[chatId]}");
-                                SaveSubscribersToFile();
-                            }
-                            // Якщо натиснута кнопка "Ні"
-                            if (message.Text == "Ні")
-                            {
-                                groupName = userGroups[chatId];
-                                Program.subscribers[chatId] = false;
-                                await botClient.SendTextMessageAsync(chatId, $"Сповіщення включено: {Program.subscribers[chatId]}");
-                                SaveSubscribersToFile();
-                            }
+                            var isSubscribed = Program.subscribers[chatId];
+                            await botClient.SendTextMessageAsync(chatId, $"Ви вже маєте підписку на сповіщення: {isSubscribed}");
+                            // Отримуємо об'єкт клавіатури з callback_data для кнопок "Так" і "Ні"
+                            var keyboard = YesNO();
+                            // Відправляємо запитання про включення сповіщень і відправляємо клавіатуру з кнопками "Так" і "Ні"
+                            await botClient.SendTextMessageAsync(chatId, "Включити сповіщення?", replyMarkup: keyboard);
                         }
-                        if (message.Text == "Повернутися назад")
+                        else
                         {
-                            var groupName = userGroups[chatId];
-                            await botClient.SendTextMessageAsync(chatId, $"Ви обрали групу {userGroups[chatId]}.\nОберіть один з наступних пунктів:", replyMarkup: GetMainKeyboard());
+                            // Отримуємо об'єкт клавіатури з callback_data для кнопок "Так" і "Ні"
+                            var keyboard = YesNO();
+                            // Відправляємо запитання про включення сповіщень і відправляємо клавіатуру з кнопками "Так" і "Ні"
+                            await botClient.SendTextMessageAsync(chatId, "Включити сповіщення?", replyMarkup: keyboard);
                         }
+                    }
+                    else if (message.Text != null)
+                    {
+                        chatId = message.Chat.Id;
+                        var groupName = userGroups[chatId];
+                        // Якщо натиснута кнопка "Так"
+                        if (message.Text == "Так")
+                        {
+                            groupName = userGroups[chatId];
+                            Program.subscribers[chatId] = true;
+                            await botClient.SendTextMessageAsync(chatId, $"Сповіщення включено: {Program.subscribers[chatId]}");
+                            SaveSubscribersToFile();
+                        }
+                        // Якщо натиснута кнопка "Ні"
+                        if (message.Text == "Ні")
+                        {
+                            groupName = userGroups[chatId];
+                            Program.subscribers[chatId] = false;
+                            await botClient.SendTextMessageAsync(chatId, $"Сповіщення включено: {Program.subscribers[chatId]}");
+                            SaveSubscribersToFile();
+                        }
+                    }
+                    if (message.Text == "Повернутися назад")
+                    {
+                        var groupName = userGroups[chatId];
+                        await botClient.SendTextMessageAsync(chatId, $"Ви обрали групу {userGroups[chatId]}.\nОберіть один з наступних пунктів:", replyMarkup: GetMainKeyboard());
+                    }
 
 
-                        else if (message.Text == "Змінити групу")
+                    else if (message.Text == "Змінити групу")
+                    {
+                        userGroups.Remove(chatId);
+                        await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
+                        if (groupNames.Contains(message.Text))
                         {
-                            userGroups.Remove(chatId);
-                            await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
+                            SaveUserGroupToFile(chatId, message.Text);
                         }
+                    }
                     if (message.Text != null && groupNames.Contains(message.Text))
                     {
                         if (userGroups.ContainsKey(chatId))
@@ -747,11 +760,11 @@ namespace GoogleCalendarApi
                         await botClient.SendTextMessageAsync(chatId, $"Ваша група: {message.Text}.\nОберіть один з наступних пунктів:", replyMarkup: GetMainKeyboard());
                     }
                 }
-                }
-                static Task Error(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
-                {
-                    Console.WriteLine($"Error: {exception.Message}");
-                    return Task.CompletedTask;
+            }
+            static Task Error(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
+            {
+                Console.WriteLine($"Error: {exception.Message}");
+                return Task.CompletedTask;
             }
 
             var cancellationTokenSource = new CancellationTokenSource();
@@ -765,19 +778,11 @@ namespace GoogleCalendarApi
                 await Task.Delay(periodTimeSpan, cancellationToken);
             }
 
-            Console.WriteLine("Цикл зупинений");
 
             Console.ReadLine();
-            Console.WriteLine("Натисніть будь-яку кнопку, щоб продовжити...");
-            foreach (KeyValuePair<long, string> userGroup in userGroups)
-            {
-                SaveUserGroupToFile(userGroup.Key, userGroup.Value);
-            }
-
-
-
+            Console.WriteLine("Натисніть будь-яку кнопку, щоб завершити...");
             Console.ReadLine();
-            }
         }
     }
+}
 
