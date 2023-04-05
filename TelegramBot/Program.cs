@@ -343,54 +343,57 @@ namespace GoogleCalendarApi
             }
         }
 
-
-        //перевірка подій на 24 години і сповіщення про них за 30 хвилин до початку
-        public async Task CheckEvents()
+        public class TelegramBot
         {
-            var remindersSent = new Dictionary<(long chatId, string eventKey), bool>();
-            var calendar = new GoogleCalendar(userGroups);
-            var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
-                .Where(e => e.StartTime >= DateTime.Now && e.StartTime <= DateTime.Now.AddHours(24))
-                .ToList();
+            private Dictionary<(long chatId, string eventKey), bool> remindersSent = new Dictionary<(long chatId, string eventKey), bool>();
 
-            foreach (var e in events)
+            //перевірка подій на 24 години і сповіщення про них за 30 хвилин до початку
+            public async Task CheckEvents()
             {
-                foreach (var subscriber in subscribers.Select(s => new Subscriber(s.Key, s.Value)))
+                var calendar = new GoogleCalendar(userGroups);
+                var events = calendar.GetEvents("3f451441fca96853e1ccaa54e186242da835046cefa025a5bfba513b7d5d4986@group.calendar.google.com")
+                    .Where(e => e.StartTime >= DateTime.Now && e.StartTime <= DateTime.Now.AddHours(24))
+                    .ToList();
+
+                foreach (var e in events)
                 {
-                    // Перевірка, чи хоче користувач отримувати нагадування
-                    if (subscriber.Reminder)
+                    foreach (var subscriber in subscribers.Select(s => new Subscriber(s.Key, s.Value)))
                     {
-                        var reminderTime = e.StartTime;
-                        var timeToEvent = reminderTime - DateTime.Now;
-
-                        // Перевірка, чи час нагадування в майбутньому
-                        if (timeToEvent.TotalMinutes > 0 && timeToEvent.TotalMinutes <= 30)
+                        // Перевірка, чи хоче користувач отримувати нагадування
+                        if (subscriber.Reminder)
                         {
-                            var eventKey = $"{e.Subject}-{e.StartTime.Date.ToString()}";
-                            var chatId = subscriber.ChatId;
+                            var reminderTime = e.StartTime;
+                            var timeToEvent = reminderTime - DateTime.Now;
 
-                            if (!remindersSent.TryGetValue((chatId, eventKey), out var isSent) || !isSent)
+                            // Перевірка, чи час нагадування в майбутньому
+                            if (timeToEvent.TotalMinutes > 0 && timeToEvent.TotalMinutes <= 30)
                             {
-                                if (DateTime.Now == e.StartTime)
-                                {
-                                    // Send message to subscriber about event start
-                                    await client.SendTextMessageAsync(chatId, $"Починається подія: {e.Subject} о {e.StartTime.ToShortTimeString()}!");
-                                }
-                                else
-                                {
-                                    // Send reminder message to subscriber
-                                    await client.SendTextMessageAsync(chatId, $"Нагадування: скоро починається наступна пара! \n\nНазва пари: {e.Subject} \nПочаток: {e.StartTime.ToShortTimeString()} - кінець: {e.EndTime.ToShortTimeString()} ,\nВикладач: {e.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(e.GoogleMeetLink) ? e.GoogleMeetLink : "Силка на пару відсутня")}\n\n");
-                                }
+                                var eventKey = $"{e.Subject}-{e.StartTime.Date.ToString()}";
+                                var chatId = subscriber.ChatId;
 
-                                remindersSent[(chatId, eventKey)] = true;
+                                if (!remindersSent.TryGetValue((chatId, eventKey), out var isSent) || !isSent)
+                                {
+                                    if (DateTime.Now == e.StartTime)
+                                    {
+                                        // Send message to subscriber about event start
+                                        await client.SendTextMessageAsync(chatId, $"Починається подія: {e.Subject} о {e.StartTime.ToShortTimeString()}!");
+                                    }
+                                    else
+                                    {
+                                        // Send reminder message to subscriber
+                                        await client.SendTextMessageAsync(chatId, $"Нагадування: скоро починається наступна пара! \n\nНазва пари: {e.Subject} \nПочаток: {e.StartTime.ToShortTimeString()} - кінець: {e.EndTime.ToShortTimeString()} ,\nВикладач: {e.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(e.GoogleMeetLink) ? e.GoogleMeetLink : "Силка на пару відсутня")}\n\n");
+                                    }
+
+                                    remindersSent[(chatId, eventKey)] = true;
+                                }
                             }
-                        }
-                        else
-                        {
-                            // If the reminder time is in the future, mark the reminder as not sent yet
-                            var eventKey = $"{e.Subject}-{e.StartTime.Date.ToString()}";
-                            var chatId = subscriber.ChatId;
-                            remindersSent[(chatId, eventKey)] = false;
+                            else
+                            {
+                                // If the reminder time is in the future, mark the reminder as not sent yet
+                                var eventKey = $"{e.Subject}-{e.StartTime.Date.ToString()}";
+                                var chatId = subscriber.ChatId;
+                                remindersSent[(chatId, eventKey)] = false;
+                            }
                         }
                     }
                 }
@@ -751,17 +754,15 @@ namespace GoogleCalendarApi
                     return Task.CompletedTask;
             }
 
-            Program program = new Program();
-            bool keepRunning = true;
-            while (keepRunning)
+            var cancellationTokenSource = new CancellationTokenSource();
+            var cancellationToken = cancellationTokenSource.Token;
+            var periodTimeSpan = TimeSpan.FromSeconds(10);
+            var bot = new TelegramBot(); // создание экземпляра класса TelegramBot
+
+            while (!cancellationToken.IsCancellationRequested)
             {
-                program.CheckEvents();
-                Thread.Sleep(TimeSpan.FromSeconds(30));
-                // перевірка на наявність команди для зупинки
-                if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Escape)
-                {
-                    keepRunning = false;
-                }
+                await bot.CheckEvents(); // вызов метода на экземпляре класса
+                await Task.Delay(periodTimeSpan, cancellationToken);
             }
 
             Console.WriteLine("Цикл зупинений");
