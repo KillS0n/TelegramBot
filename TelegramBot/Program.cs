@@ -627,7 +627,7 @@ namespace GoogleCalendarApi
                     userForm[chatId] = "formanavchanya"; // Додати новий ключ зі значенням за замовчуванням
                     forma = "formanavchanya";
                 }
-                string educationForm = "";
+                
 
                 if (message.Type == MessageType.Text)
                 {
@@ -639,16 +639,17 @@ namespace GoogleCalendarApi
                         {
                             await botClient.SendTextMessageAsync(chatId, "Виберіть форму навчання:", replyMarkup: FormaNavchanya());
                         }
-                        else if (userForm.TryGetValue(chatId, out string FormValue2) && FormValue2 != "formanavchanya")
+
+
+                        if (userForm.TryGetValue(chatId, out string FormValue2) && FormValue2 != "formanavchanya")
                         {
-                            await botClient.SendTextMessageAsync(chatId,$"Ви обрали форму навчання {userForm[chatId]}.");
                             if (userGroups.TryGetValue(chatId, out string groupValue2) && groupValue2 != "Group 1")
                             {
                                 await botClient.SendTextMessageAsync(chatId, $"Ви обрали групу {userGroups[chatId]}.\nОберіть один з наступних пунктів:", replyMarkup: GetMainKeyboard());
                             }
                             if (userGroups.TryGetValue(chatId, out string groupValue) && groupValue == "Group 1")
                             {
-                                if (educationForm == "Денна")
+                                if (userForm.TryGetValue(chatId, out FormValue) && FormValue == "Денна")
                                 {
                                     await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
                                     if (groupNames.Contains(message.Text))
@@ -656,7 +657,7 @@ namespace GoogleCalendarApi
                                         SaveUserGroupToFile(chatId, message.Text);
                                     }
                                 }
-                                else if (educationForm == "Заочна")
+                                else if (userForm.TryGetValue(chatId, out FormValue) && FormValue == "Заочна")
                                 {
                                     await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupZaochKeyboard());
                                     if (groupNames.Contains(message.Text))
@@ -664,20 +665,27 @@ namespace GoogleCalendarApi
                                         SaveUserGroupToFile(chatId, message.Text);
                                     }
                                 }
+
                             }
                         }
-                        else if (message.Text == "Денна")
+                    }
+                    
+                    if (message.Text == "Денна")
+                    {
+                        await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
+                        if (groupNames.Contains(message.Text))
                         {
-                            educationForm = "Денна";
-                            await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
-                        }
-                        else if (message.Text == "Заочна")
-                        {
-                            educationForm = "Заочна";
-                            await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupZaochKeyboard());
+                            SaveUserFormToFile(chatId, message.Text);
                         }
                     }
-
+                    else if (message.Text == "Заочна")
+                    {
+                        await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupZaochKeyboard());
+                        if (groupNames.Contains(message.Text))
+                        {
+                            SaveUserFormToFile(chatId, message.Text);
+                        }
+                    }
 
                     //вивід пар на сьогодні
                     if (message.Text == "Вивести розклад на сьогодні")
