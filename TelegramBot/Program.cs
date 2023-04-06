@@ -26,9 +26,13 @@ namespace GoogleCalendarApi
 {
     class Program
     {
+        string calendarid = System.IO.File.ReadAllText("calendarid.txt");
+        private static string telegramtoken = System.IO.File.ReadAllText("telegramtoken.txt");
+
         //токен для телеграм бота
-        private static string token { get; set; } = "5522982120:AAFwClh10_pQJyvAvAmHha-4OPWrrpmWd-E";
+        private static string token { get; set; } = telegramtoken;
         private static TelegramBotClient? client;
+
 
         // Словарь для хранения выбранной пользователем группы и его chat id
         static Dictionary<long, string> userGroups = new Dictionary<long, string>();
@@ -125,12 +129,13 @@ namespace GoogleCalendarApi
             public string? Subject { get; set; }
             public string? Teacher { get; set; }
             public string? GoogleMeetLink { get; set; }
+            public string? Classroom { get; set; }
             public DateTime StartTime { get; set; }
             public DateTime EndTime { get; set; }
 
             public override string ToString()
             {
-                return $"{Group}, {Subject}, {Teacher}, {GoogleMeetLink},{StartTime}, {EndTime}";
+                return $"{Group}, {Subject}, {Teacher}, {GoogleMeetLink},{StartTime}, {EndTime},{Classroom}";
             }
         }
 
@@ -204,11 +209,16 @@ namespace GoogleCalendarApi
                         if (!string.IsNullOrEmpty(eventItem.Summary))
                         {
                             var summaryParts = eventItem.Summary.Split(',');
-                            if (summaryParts.Length >= 3)
+                            if (summaryParts.Length >= 4)
                             {
-                                var groups = summaryParts.Take(summaryParts.Length - 2).ToList();
-                                var subject = summaryParts[summaryParts.Length - 2].Trim();
-                                var teacher = summaryParts[summaryParts.Length - 1].Trim();
+                                var groups = summaryParts.Take(summaryParts.Length - 3).ToList();
+                                var subject = summaryParts[summaryParts.Length - 3].Trim();
+                                var teacher = summaryParts[summaryParts.Length - 2].Trim();
+                                var Classroom = summaryParts[summaryParts.Length - 1].Trim();
+                                if (Classroom.Contains("ауд. "))
+                                {
+                                    Classroom = Classroom.Replace("ауд. ", "");
+                                }
 
                                 foreach (var group in groups)
                                 {
@@ -232,6 +242,7 @@ namespace GoogleCalendarApi
                                             Group = group,
                                             Subject = subject,
                                             Teacher = teacher,
+                                            Classroom = Classroom,
                                             GoogleMeetLink = googleMeetLink,
                                             StartTime = start,
                                             EndTime = end
@@ -247,13 +258,13 @@ namespace GoogleCalendarApi
 
                 return calendarEvents;
             }
-
         }
 
 
 
-        //збереження в файл JSON
-        private static void SaveUserGroupToFile(long chatId, string groupName)
+
+            //збереження в файл JSON
+            private static void SaveUserGroupToFile(long chatId, string groupName)
         {
             string filePath = "user_Group.json";
             Dictionary<long, string> userGroups;
@@ -351,7 +362,9 @@ namespace GoogleCalendarApi
             public async Task CheckEvents()
             {
                 var calendar = new GoogleCalendar(userGroups);
-                var events = calendar.GetEvents("c_hlnnlo9824qj9tc1ita1ofhgu8@group.calendar.google.com")
+                Program program = new Program();
+                string calendarid = program.calendarid;
+                var events = calendar.GetEvents(calendarid)
                     .Where(e => e.StartTime >= DateTime.Now && e.StartTime <= DateTime.Now.AddHours(24))
                     .ToList();
 
@@ -381,7 +394,12 @@ namespace GoogleCalendarApi
                                     else
                                     {
                                         // Send reminder message to subscriber
-                                        await client.SendTextMessageAsync(chatId, $"Нагадування: скоро починається наступна пара! \n\nНазва пари: {e.Subject} \nПочаток: {e.StartTime.ToShortTimeString()} - кінець: {e.EndTime.ToShortTimeString()} ,\nВикладач: {e.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(e.GoogleMeetLink) ? e.GoogleMeetLink : "Силка на пару відсутня")}\n\n");
+                                        await client.SendTextMessageAsync(chatId, 
+                                            $"Нагадування: скоро починається наступна пара! " +
+                                            $"\n\nНазва пари: {e.Subject} \nПочаток: {e.StartTime.ToShortTimeString()} - кінець: {e.EndTime.ToShortTimeString()} ," +
+                                            $"\nВикладач: {e.Teacher}" +
+                                            $"\nАудиторія: {(!string.IsNullOrEmpty(e.Classroom) ? e.Classroom : "Аудиторія відсутня")}" +
+                                            $"\nСилка на пару: {(!string.IsNullOrEmpty(e.GoogleMeetLink) ? e.GoogleMeetLink : "відсутня")}\n\n");
                                     }
 
                                     remindersSent[(chatId, eventKey)] = true;
@@ -411,7 +429,7 @@ namespace GoogleCalendarApi
 
         static async Task Main(string[] args)
         {
-            Console.WriteLine("Початок");
+            Console.WriteLine("Старт бота");
             Console.WriteLine("========================================================");
 
 
@@ -528,8 +546,10 @@ namespace GoogleCalendarApi
                     {
                         var groupName = userGroups[chatId];
                         var calendar = new GoogleCalendar(userGroups);
-                        var events = calendar.GetEvents("c_hlnnlo9824qj9tc1ita1ofhgu8@group.calendar.google.com")
-                            .Where(e => e.Group == groupName && e.StartTime.Date == DateTime.Today)
+                        Program program = new Program();
+                        string calendarid = program.calendarid;
+                        var events = calendar.GetEvents(calendarid)
+                                    .Where(e => e.Group == groupName && e.StartTime.Date == DateTime.Today)
                             .OrderBy(e => e.StartTime);
 
                         if (events.Any())
@@ -538,7 +558,11 @@ namespace GoogleCalendarApi
 
                             foreach (var ev in events)
                             {
-                                messageToSend += $"Назва пари: {ev.Subject} \nПочаток: {ev.StartTime.ToShortTimeString()} - кінець: {ev.EndTime.ToShortTimeString()} ,\nВикладач: {ev.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(ev.GoogleMeetLink) ? ev.GoogleMeetLink : "Силка на пару відсутня")}\n\n";
+                                messageToSend += $"Нагадування: скоро починається наступна пара! " +
+                                        $"\n\nНазва пари: {ev.Subject} \nПочаток: {ev.StartTime.ToShortTimeString()} - кінець: {ev.EndTime.ToShortTimeString()} ," +
+                                        $"\nВикладач: {ev.Teacher}" +
+                                        $"\nАудиторія: {(!string.IsNullOrEmpty(ev.Classroom) ? ev.Classroom : "Аудиторія відсутня")}" +
+                                        $"\nСилка на пару: {(!string.IsNullOrEmpty(ev.GoogleMeetLink) ? ev.GoogleMeetLink : "відсутня")}\n\n";
                             }
 
                             await botClient.SendTextMessageAsync(chatId, messageToSend);
@@ -555,8 +579,10 @@ namespace GoogleCalendarApi
                     {
                         var groupName = userGroups[chatId];
                         var calendar = new GoogleCalendar(userGroups);
-                        var events = calendar.GetEvents("c_hlnnlo9824qj9tc1ita1ofhgu8@group.calendar.google.com")
-                            .Where(e => e.Group == groupName && e.StartTime.Date == DateTime.Today.AddDays(1))
+                        Program program = new Program();
+                        string calendarid = program.calendarid;
+                        var events = calendar.GetEvents(calendarid)
+                                    .Where(e => e.Group == groupName && e.StartTime.Date == DateTime.Today.AddDays(1))
                             .OrderBy(e => e.StartTime);
 
                         if (userGroups.ContainsKey(chatId))
@@ -567,7 +593,12 @@ namespace GoogleCalendarApi
 
                                 foreach (var ev in events)
                                 {
-                                    messageToSend += $"Назва пари: {ev.Subject} \nПочаток: {ev.StartTime.ToShortTimeString()} - кінець: {ev.EndTime.ToShortTimeString()} ,\nВикладач: {ev.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(ev.GoogleMeetLink) ? ev.GoogleMeetLink : "Силка на пару відсутня")}\n\n";
+                                    messageToSend += $"Нагадування: скоро починається наступна пара! " +
+                                            $"\n\nНазва пари: {ev.Subject} \nПочаток: {ev.StartTime.ToShortTimeString()} - кінець: {ev.EndTime.ToShortTimeString()} ," +
+                                            $"\nВикладач: {ev.Teacher}" +
+                                            $"\nАудиторія: {(!string.IsNullOrEmpty(ev.Classroom) ? ev.Classroom : "Аудиторія відсутня")}" +
+                                            $"\nСилка на пару: {(!string.IsNullOrEmpty(ev.GoogleMeetLink) ? ev.GoogleMeetLink : "відсутня")}\n\n";
+                                            
                                 }
 
                                 await botClient.SendTextMessageAsync(chatId, messageToSend);
@@ -592,8 +623,10 @@ namespace GoogleCalendarApi
                         var today = DateTime.Today;
                         var startOfWeek = today.AddDays(-(int)today.DayOfWeek + (int)DayOfWeek.Monday);
                         var endOfWeek = startOfWeek.AddDays(6);
-                        var events = calendar.GetEvents("c_hlnnlo9824qj9tc1ita1ofhgu8@group.calendar.google.com")
-                        .Where(e => e.Group == groupName && e.StartTime >= startOfWeek && e.StartTime <= endOfWeek)
+                        Program program = new Program();
+                        string calendarid = program.calendarid;
+                        var events = calendar.GetEvents(calendarid)
+                                .Where(e => e.Group == groupName && e.StartTime >= startOfWeek && e.StartTime <= endOfWeek)
                         .OrderBy(e => e.StartTime);
 
                         if (events.Any())
@@ -610,7 +643,11 @@ namespace GoogleCalendarApi
                             foreach (var ev in events)
                             {
                                 var dayOfWeek = ev.StartTime.DayOfWeek;
-                                var formattedEvent = $"Назва пари: {ev.Subject} \nПочаток: {ev.StartTime.ToShortTimeString()} - кінець: {ev.EndTime.ToShortTimeString()} ,\nВикладач: {ev.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(ev.GoogleMeetLink) ? ev.GoogleMeetLink : "Силка на пару відсутня")}\n";
+                                var formattedEvent = $"Назва пари: {ev.Subject} " +
+                                $"\nПочаток: {ev.StartTime.ToShortTimeString()} - кінець: {ev.EndTime.ToShortTimeString()} ," +
+                                $"\nВикладач: {ev.Teacher}" +
+                                $"\nАудиторія: {(!string.IsNullOrEmpty(ev.Classroom) ? ev.Classroom : "Аудиторія відсутня")}" +
+                                $"\nСилка на пару: {(!string.IsNullOrEmpty(ev.GoogleMeetLink) ? ev.GoogleMeetLink : "відсутня")}\n\n";
 
                                 scheduleByDay[dayOfWeek].Add(formattedEvent);
                             }
@@ -644,7 +681,9 @@ namespace GoogleCalendarApi
                         var calendar = new GoogleCalendar(userGroups);
                         var nextMonday = DateTime.Today.AddDays(((int)DayOfWeek.Monday - (int)DateTime.Today.DayOfWeek + 7) % 7);
                         var nextSunday = nextMonday.AddDays(6);
-                        var events = calendar.GetEvents("c_hlnnlo9824qj9tc1ita1ofhgu8@group.calendar.google.com")
+                        Program program = new Program();
+                        string calendarid = program.calendarid;
+                        var events = calendar.GetEvents(calendarid)
                         .Where(e => e.Group == groupName && e.StartTime >= nextMonday && e.StartTime <= nextSunday)
                         .OrderBy(e => e.StartTime);
 
@@ -663,7 +702,13 @@ namespace GoogleCalendarApi
                             foreach (var ev in events)
                             {
                                 var dayOfWeek = ev.StartTime.DayOfWeek;
-                                var formattedEvent = $"Назва пари: {ev.Subject} \nПочаток: {ev.StartTime.ToShortTimeString()} - кінець: {ev.EndTime.ToShortTimeString()} ,\nВикладач: {ev.Teacher}\nСилка на пару: {(!string.IsNullOrEmpty(ev.GoogleMeetLink) ? ev.GoogleMeetLink : "Силка на пару відсутня")}\n";
+                                var formattedEvent = $"Назва пари: {ev.Subject} " +
+                                $"\nПочаток: {ev.StartTime.ToShortTimeString()} - кінець: {ev.EndTime.ToShortTimeString()} ," +
+                                $"\nВикладач: {ev.Teacher}" +
+                                $"\nАудиторія: {(!string.IsNullOrEmpty(ev.Classroom) ? ev.Classroom : "Аудиторія відсутня")}" +
+                                $"\nСилка на пару: {(!string.IsNullOrEmpty(ev.GoogleMeetLink) ? ev.GoogleMeetLink : "відсутня")}\n\n";
+
+
 
                                 scheduleByDay[dayOfWeek].Add(formattedEvent);
                             }
