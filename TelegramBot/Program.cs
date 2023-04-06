@@ -40,6 +40,9 @@ namespace GoogleCalendarApi
         // Словарь для хранения выбранной пользователем оповещания да или нет и его chat id
         public static Dictionary<long, bool> subscribers = new Dictionary<long, bool>();
 
+        // Словарь для хранения выбранной пользователем группы и его chat id
+        static Dictionary<long, string> userForm = new Dictionary<long, string>();
+
 
 
 
@@ -68,7 +71,7 @@ namespace GoogleCalendarApi
         }
 
 
-        //метод для створення клавіатур для вибору групи
+        //метод для створення клавіатур для вибору групи деники
         private static ReplyKeyboardMarkup GetGroupKeyboard()
         {
             var keyboard = new ReplyKeyboardMarkup(new[]
@@ -102,6 +105,40 @@ namespace GoogleCalendarApi
             return keyboard;
         }
 
+        //метод для створення клавіатур для вибору групи заочники
+        private static ReplyKeyboardMarkup GetGroupZaochKeyboard()
+        {
+            var keyboard = new ReplyKeyboardMarkup(new[]
+            {
+        new[]
+        {
+            new KeyboardButton("91-ПІ"),
+            new KeyboardButton("91-КН"),
+            new KeyboardButton("91-ІН")
+        },
+        new[]
+        {
+            new KeyboardButton("20-ПІ"),
+            new KeyboardButton("20-КН"),
+            new KeyboardButton("20-ІН")
+        },
+        new[]
+        {
+            new KeyboardButton("21-ПІ"),
+            new KeyboardButton("21-КН"),
+            new KeyboardButton("21-ІН")
+        },
+        new[]
+        {
+            new KeyboardButton("22-ПІ"),
+            new KeyboardButton("22-КН"),
+            new KeyboardButton("22-ІН")
+        }
+    });
+
+            return keyboard;
+        }
+
 
         //метод для створення клавіатур чи отримувати сповіщення про початок подіїї
         private static ReplyKeyboardMarkup YesNO()
@@ -116,6 +153,20 @@ namespace GoogleCalendarApi
         new[]
         {
             new KeyboardButton("Повернутися назад"),
+        },
+    });
+            return keyboard;
+        }
+
+        //метод для створення клавіатур чи отримувати сповіщення про початок подіїї
+        private static ReplyKeyboardMarkup FormaNavchanya()
+        {
+            var keyboard = new ReplyKeyboardMarkup(new[]
+            {
+        new[]
+        {
+            new KeyboardButton("Денна"),
+            new KeyboardButton("Заочна"),
         },
     });
             return keyboard;
@@ -335,6 +386,42 @@ namespace GoogleCalendarApi
         }
 
 
+        private static void SaveUserFormToFile(long chatId, string FormName)
+        {
+            string filePath = "user_Form.json";
+            Dictionary<long, string> userForm;
+
+            if (System.IO.File.Exists(filePath))
+            {
+                string jsons = System.IO.File.ReadAllText(filePath);
+                if (!string.IsNullOrEmpty(jsons))
+                {
+                    userForm = JsonConvert.DeserializeObject<Dictionary<long, string>>(jsons);
+                }
+                else
+                {
+                    userForm = new Dictionary<long, string>();
+                }
+            }
+            else
+            {
+                userForm = new Dictionary<long, string>();
+            }
+
+            if (userForm.ContainsKey(chatId))
+            {
+                userForm[chatId] = FormName;
+            }
+            else
+            {
+                userForm.Add(chatId, FormName);
+            }
+
+            string json = JsonConvert.SerializeObject(userForm);
+            System.IO.File.WriteAllText(filePath, json);
+        }
+
+
 
 
 
@@ -459,6 +546,28 @@ namespace GoogleCalendarApi
 
 
 
+            // Зчитування словника з файлу JSON 
+            string filePath3 = "user_Form.json";
+
+            if (System.IO.File.Exists(filePath3))
+            {
+                string jsons = System.IO.File.ReadAllText(filePath3);
+                if (!string.IsNullOrEmpty(jsons))
+                {
+                    userForm = JsonConvert.DeserializeObject<Dictionary<long, string>>(jsons);
+                }
+                else
+                {
+                    userForm = new Dictionary<long, string>();
+                }
+            }
+            else
+            {
+                userForm = new Dictionary<long, string>();
+            }
+
+
+
             string filePath2 = "YesNO.json";
 
             // Зчитуємо існуючий файл, якщо він існує
@@ -496,7 +605,7 @@ namespace GoogleCalendarApi
 
             async static Task Update(ITelegramBotClient botClient, Update update, CancellationToken token)
             {
-                var groupNames = new List<string> { "ПІ-91", "ПІ-20", "ПІ-21", "ПІ-22", "КН-91", "КН-20", "КН-21", "КН-22", "ІН-91", "ІН-20", "ІН-21", "ІН-22" };
+                var groupNames = new List<string> { "ПІ-91", "ПІ-20", "ПІ-21", "ПІ-22", "КН-91", "КН-20", "КН-21", "КН-22", "ІН-91", "ІН-20", "ІН-21", "ІН-22", "91-ПІ", "20-ПІ", "21-ПІ", "22-ПІ", "91-КН", "20-КН", "21-КН", "22-КН", "91-ІН", "20-ІН", "21-ІН", "22-ІН" };
                 if (update == null)
                     return;
 
@@ -513,7 +622,12 @@ namespace GoogleCalendarApi
                     userGroups[chatId] = "Group 1"; // Додати новий ключ зі значенням за замовчуванням
                     group = "Group 1";
                 }
-
+                if (!userForm.TryGetValue(chatId, out string forma))
+                {
+                    userForm[chatId] = "formanavchanya"; // Додати новий ключ зі значенням за замовчуванням
+                    forma = "formanavchanya";
+                }
+                string educationForm = "";
 
                 if (message.Type == MessageType.Text)
                 {
@@ -521,23 +635,47 @@ namespace GoogleCalendarApi
 
                     if (message.Text == "/start")
                     {
-                        if (userGroups.TryGetValue(chatId, out string groupValue2) && groupValue2 != "Group 1")
+                        if (userForm.TryGetValue(chatId, out string FormValue) && FormValue == "formanavchanya")
                         {
-                            await botClient.SendTextMessageAsync(chatId, $"Ви обрали групу {userGroups[chatId]}.\nОберіть один з наступних пунктів:", replyMarkup: GetMainKeyboard());
+                            await botClient.SendTextMessageAsync(chatId, "Виберіть форму навчання:", replyMarkup: FormaNavchanya());
                         }
-                        if (userGroups.TryGetValue(chatId, out string groupValue) && groupValue == "Group 1")
+                        else if (userForm.TryGetValue(chatId, out string FormValue2) && FormValue2 != "formanavchanya")
                         {
-                            await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
-                            if (groupNames.Contains(message.Text))
+                            await botClient.SendTextMessageAsync(chatId,$"Ви обрали форму навчання {userForm[chatId]}.");
+                            if (userGroups.TryGetValue(chatId, out string groupValue2) && groupValue2 != "Group 1")
                             {
-                                SaveUserGroupToFile(chatId, message.Text);
+                                await botClient.SendTextMessageAsync(chatId, $"Ви обрали групу {userGroups[chatId]}.\nОберіть один з наступних пунктів:", replyMarkup: GetMainKeyboard());
+                            }
+                            if (userGroups.TryGetValue(chatId, out string groupValue) && groupValue == "Group 1")
+                            {
+                                if (educationForm == "Денна")
+                                {
+                                    await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
+                                    if (groupNames.Contains(message.Text))
+                                    {
+                                        SaveUserGroupToFile(chatId, message.Text);
+                                    }
+                                }
+                                else if (educationForm == "Заочна")
+                                {
+                                    await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupZaochKeyboard());
+                                    if (groupNames.Contains(message.Text))
+                                    {
+                                        SaveUserGroupToFile(chatId, message.Text);
+                                    }
+                                }
                             }
                         }
-                    }
-
-                    if (groupNames.Contains(message.Text))
-                    {
-                        SaveUserGroupToFile(chatId, message.Text);
+                        else if (message.Text == "Денна")
+                        {
+                            educationForm = "Денна";
+                            await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
+                        }
+                        else if (message.Text == "Заочна")
+                        {
+                            educationForm = "Заочна";
+                            await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupZaochKeyboard());
+                        }
                     }
 
 
