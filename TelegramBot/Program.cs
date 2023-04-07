@@ -63,12 +63,12 @@ namespace GoogleCalendarApi
         },
         new[]
         {
-            new KeyboardButton("Включення отримання сповіщення до початку пари"),
+            new KeyboardButton("Змінити форму навчання"),
+            new KeyboardButton("Змінити групу"),
         },
         new[]
         {
-            new KeyboardButton("Змінити форму навчання"),
-            new KeyboardButton("Змінити групу"),
+            new KeyboardButton("Включення отримання сповіщення до початку пари"),
         },
     });
             return keyboard;
@@ -264,46 +264,49 @@ namespace GoogleCalendarApi
                         if (!string.IsNullOrEmpty(eventItem.Summary))
                         {
                             var summaryParts = eventItem.Summary.Split(',');
-                            if (summaryParts.Length >= 4)
-                            {
-                                var groups = summaryParts.Take(summaryParts.Length - 3).ToList();
-                                var subject = summaryParts[summaryParts.Length - 3].Trim();
-                                var teacher = summaryParts[summaryParts.Length - 2].Trim();
-                                var Classroom = summaryParts[summaryParts.Length - 1].Trim();
-                                if (Classroom.Contains("ауд. "))
+                            if (summaryParts.Length >= 4 && !string.IsNullOrWhiteSpace(summaryParts[summaryParts.Length - 3]) && !string.IsNullOrWhiteSpace(summaryParts[summaryParts.Length - 2]) && !string.IsNullOrWhiteSpace(summaryParts[summaryParts.Length - 1]))
+                            { 
+                                if (summaryParts.Length >= 4)
                                 {
-                                    Classroom = Classroom.Replace("ауд. ", "");
-                                }
-
-                                foreach (var group in groups)
-                                {
-                                    if (UserGroups.ContainsValue(group))
+                                    var groups = summaryParts.Take(summaryParts.Length - 3).ToList();
+                                    var subject = summaryParts[summaryParts.Length - 3].Trim();
+                                    var teacher = summaryParts[summaryParts.Length - 2].Trim();
+                                    var Classroom = summaryParts[summaryParts.Length - 1].Trim();
+                                    if (Classroom.Contains("ауд. "))
                                     {
-                                        var start = eventItem.Start.DateTime ?? DateTime.MinValue;
-                                        var end = eventItem.End.DateTime ?? DateTime.MinValue;
+                                        Classroom = Classroom.Replace("ауд. ", "");
+                                    }
 
-                                        var googleMeetLink = "";
-                                        if (eventItem.ConferenceData != null && eventItem.ConferenceData.CreateRequest != null)
+                                    foreach (var group in groups)
+                                    {
+                                        if (UserGroups.ContainsValue(group))
                                         {
-                                            googleMeetLink = eventItem.ConferenceData.CreateRequest.ConferenceSolutionKey.Type == "hangoutsMeet" ? eventItem.ConferenceData.EntryPoints[0].Uri : "";
+                                            var start = eventItem.Start.DateTime ?? DateTime.MinValue;
+                                            var end = eventItem.End.DateTime ?? DateTime.MinValue;
+
+                                            var googleMeetLink = "";
+                                            if (eventItem.ConferenceData != null && eventItem.ConferenceData.CreateRequest != null)
+                                            {
+                                                googleMeetLink = eventItem.ConferenceData.CreateRequest.ConferenceSolutionKey.Type == "hangoutsMeet" ? eventItem.ConferenceData.EntryPoints[0].Uri : "";
+                                            }
+                                            if (eventItem.ConferenceData != null && eventItem.ConferenceData.EntryPoints != null && eventItem.ConferenceData.EntryPoints.Any(ep => ep.Uri.StartsWith("https://meet.google.com/")))
+                                            {
+                                                googleMeetLink = eventItem.ConferenceData.EntryPoints.First(ep => ep.Uri.StartsWith("https://meet.google.com/")).Uri;
+                                            }
+
+                                            var calendarEvent = new CalendarEvent
+                                            {
+                                                Group = group,
+                                                Subject = subject,
+                                                Teacher = teacher,
+                                                Classroom = Classroom,
+                                                GoogleMeetLink = googleMeetLink,
+                                                StartTime = start,
+                                                EndTime = end
+                                            };
+
+                                            calendarEvents.Add(calendarEvent);
                                         }
-                                        if (eventItem.ConferenceData != null && eventItem.ConferenceData.EntryPoints != null && eventItem.ConferenceData.EntryPoints.Any(ep => ep.Uri.StartsWith("https://meet.google.com/")))
-                                        {
-                                            googleMeetLink = eventItem.ConferenceData.EntryPoints.First(ep => ep.Uri.StartsWith("https://meet.google.com/")).Uri;
-                                        }
-
-                                        var calendarEvent = new CalendarEvent
-                                        {
-                                            Group = group,
-                                            Subject = subject,
-                                            Teacher = teacher,
-                                            Classroom = Classroom,
-                                            GoogleMeetLink = googleMeetLink,
-                                            StartTime = start,
-                                            EndTime = end
-                                        };
-
-                                        calendarEvents.Add(calendarEvent);
                                     }
                                 }
                             }
@@ -610,6 +613,7 @@ namespace GoogleCalendarApi
             async static Task Update(ITelegramBotClient botClient, Update update, CancellationToken token)
             {
                 var groupNames = new List<string> { "ПІ-91", "ПІ-20", "ПІ-21", "ПІ-22", "КН-91", "КН-20", "КН-21", "КН-22", "ІН-91", "ІН-20", "ІН-21", "ІН-22", "91-ПІ", "20-ПІ", "21-ПІ", "22-ПІ", "91-КН", "20-КН", "21-КН", "22-КН", "91-ІН", "20-ІН", "21-ІН", "22-ІН" };
+                var listformnav = new List<string> {"Денна", "Заочна" };
                 if (update == null)
                     return;
 
@@ -691,6 +695,15 @@ namespace GoogleCalendarApi
                         {
                             SaveUserFormToFile(chatId, message.Text);
                         }
+                    }
+
+                    if (groupNames.Contains(message.Text))
+                    {
+                        SaveUserGroupToFile(chatId, message.Text);
+                    }
+                    if (listformnav.Contains(message.Text))
+                        {
+                        SaveUserFormToFile(chatId, message.Text);
                     }
 
                     //вивід пар на сьогодні
@@ -942,14 +955,30 @@ namespace GoogleCalendarApi
                         await botClient.SendTextMessageAsync(chatId, $"Ви обрали групу {userGroups[chatId]}.\nОберіть один з наступних пунктів:", replyMarkup: GetMainKeyboard());
                     }
 
+                    else if (message.Text == "Змінити форму навчання")
+                    {
+                        userForm.Remove(chatId);
+                        await botClient.SendTextMessageAsync(chatId, "Виберіть форму навчання:", replyMarkup: FormaNavchanya());
+                    }
 
                     else if (message.Text == "Змінити групу")
                     {
                         userGroups.Remove(chatId);
-                        await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
-                        if (groupNames.Contains(message.Text))
+                        if (userForm.TryGetValue(chatId, out string FormValue) && FormValue == "Денна")
                         {
-                            SaveUserGroupToFile(chatId, message.Text);
+                            await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
+                            if (groupNames.Contains(message.Text))
+                            {
+                                SaveUserGroupToFile(chatId, message.Text);
+                            }
+                        }
+                        else if (userForm.TryGetValue(chatId, out FormValue) && FormValue == "Заочна")
+                        {
+                            await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupZaochKeyboard());
+                            if (groupNames.Contains(message.Text))
+                            {
+                                SaveUserGroupToFile(chatId, message.Text);
+                            }
                         }
                     }
                     if (message.Text != null && groupNames.Contains(message.Text))
