@@ -219,7 +219,7 @@ namespace GoogleCalendarApi
                 try
                 {
                     GoogleCredential credential;
-                    using (var stream = new FileStream("telegrambot-363818-c5afa8c735d4.json", FileMode.Open, FileAccess.Read))
+                    using (var stream = new FileStream("servise_acaunt_calendar.json", FileMode.Open, FileAccess.Read))
                     {
                         credential = GoogleCredential.FromStream(stream)
                             .CreateScoped(Scopes);
@@ -265,7 +265,7 @@ namespace GoogleCalendarApi
                         {
                             var summaryParts = eventItem.Summary.Split(',');
                             if (summaryParts.Length >= 4 && !string.IsNullOrWhiteSpace(summaryParts[summaryParts.Length - 3]) && !string.IsNullOrWhiteSpace(summaryParts[summaryParts.Length - 2]) && !string.IsNullOrWhiteSpace(summaryParts[summaryParts.Length - 1]))
-                            { 
+                            {
                                 if (summaryParts.Length >= 4)
                                 {
                                     var groups = summaryParts.Take(summaryParts.Length - 3).ToList();
@@ -321,8 +321,8 @@ namespace GoogleCalendarApi
 
 
 
-            //збереження в файл JSON
-            private static void SaveUserGroupToFile(long chatId, string groupName)
+        //збереження в файл JSON
+        private static void SaveUserGroupToFile(long chatId, string groupName)
         {
             string filePath = "user_Group.json";
             Dictionary<long, string> userGroups;
@@ -488,7 +488,7 @@ namespace GoogleCalendarApi
                                     else
                                     {
                                         // Send reminder message to subscriber
-                                        await client.SendTextMessageAsync(chatId, 
+                                        await client.SendTextMessageAsync(chatId,
                                             $"Нагадування: скоро починається наступна пара! " +
                                             $"\n\nНазва пари: {e.Subject} \nПочаток: {e.StartTime.ToShortTimeString()} - кінець: {e.EndTime.ToShortTimeString()} ," +
                                             $"\nВикладач: {e.Teacher}" +
@@ -613,7 +613,7 @@ namespace GoogleCalendarApi
             async static Task Update(ITelegramBotClient botClient, Update update, CancellationToken token)
             {
                 var groupNames = new List<string> { "ПІ-91", "ПІ-20", "ПІ-21", "ПІ-22", "КН-91", "КН-20", "КН-21", "КН-22", "ІН-91", "ІН-20", "ІН-21", "ІН-22", "91-ПІ", "20-ПІ", "21-ПІ", "22-ПІ", "91-КН", "20-КН", "21-КН", "22-КН", "91-ІН", "20-ІН", "21-ІН", "22-ІН" };
-                var listformnav = new List<string> {"Денна", "Заочна" };
+                var listformnav = new List<string> { "Денна", "Заочна" };
                 if (update == null)
                     return;
 
@@ -635,7 +635,7 @@ namespace GoogleCalendarApi
                     userForm[chatId] = "formanavchanya"; // Додати новий ключ зі значенням за замовчуванням
                     forma = "formanavchanya";
                 }
-                
+
 
                 if (message.Type == MessageType.Text)
                 {
@@ -660,41 +660,25 @@ namespace GoogleCalendarApi
                                 if (userForm.TryGetValue(chatId, out FormValue) && FormValue == "Денна")
                                 {
                                     await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
-                                    if (groupNames.Contains(message.Text))
-                                    {
-                                        SaveUserGroupToFile(chatId, message.Text);
-                                    }
                                 }
                                 else if (userForm.TryGetValue(chatId, out FormValue) && FormValue == "Заочна")
                                 {
                                     await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupZaochKeyboard());
-                                    if (groupNames.Contains(message.Text))
-                                    {
-                                        SaveUserGroupToFile(chatId, message.Text);
-                                    }
                                 }
 
                             }
                         }
                     }
-                    
+
                     if (message.Text == "Денна")
                     {
                         userForm[chatId] = message.Text;
                         await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
-                        if (groupNames.Contains(message.Text))
-                        {
-                            SaveUserFormToFile(chatId, message.Text);
-                        }
                     }
                     else if (message.Text == "Заочна")
                     {
                         userForm[chatId] = message.Text;
                         await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupZaochKeyboard());
-                        if (groupNames.Contains(message.Text))
-                        {
-                            SaveUserFormToFile(chatId, message.Text);
-                        }
                     }
 
                     if (groupNames.Contains(message.Text))
@@ -702,7 +686,7 @@ namespace GoogleCalendarApi
                         SaveUserGroupToFile(chatId, message.Text);
                     }
                     if (listformnav.Contains(message.Text))
-                        {
+                    {
                         SaveUserFormToFile(chatId, message.Text);
                     }
 
@@ -763,7 +747,7 @@ namespace GoogleCalendarApi
                                             $"\nВикладач: {ev.Teacher}" +
                                             $"\nАудиторія: {(!string.IsNullOrEmpty(ev.Classroom) ? ev.Classroom : "Аудиторія відсутня")}" +
                                             $"\nСилка на пару: {(!string.IsNullOrEmpty(ev.GoogleMeetLink) ? ev.GoogleMeetLink : "відсутня")}\n\n";
-                                            
+
                                 }
 
                                 await botClient.SendTextMessageAsync(chatId, messageToSend);
@@ -907,14 +891,14 @@ namespace GoogleCalendarApi
                         if (Program.subscribers.ContainsKey(chatId))
                         {
                             var isSubscribed = Program.subscribers[chatId];
-                            if(isSubscribed==true)
+                            if (isSubscribed == true)
                             {
                                 await botClient.SendTextMessageAsync(chatId, $"Ви вже маєте підписку на сповіщення");
                             }
                             else
                             {
                                 await botClient.SendTextMessageAsync(chatId, $"Ви не маєте підписку на сповіщення");
-                            } 
+                            }
                             // Отримуємо об'єкт клавіатури з callback_data для кнопок "Так" і "Ні"
                             var keyboard = YesNO();
                             // Відправляємо запитання про включення сповіщень і відправляємо клавіатуру з кнопками "Так" і "Ні"
