@@ -361,35 +361,39 @@ namespace GoogleCalendarApi
 
 
 
-        private static void SaveSubscribersToFile()
+        private static void SaveSubscribersToFile(long chatId, bool yasno)
         {
-            string filePath = "YesNO.json";
-            Dictionary<long, bool> reminders;
+            string filePath42 = "YesNO.json";
+            Dictionary<long, bool> subsubscribers;
 
-            if (System.IO.File.Exists(filePath))
+            if (System.IO.File.Exists(filePath42))
             {
-                string jsons = System.IO.File.ReadAllText(filePath);
+                string jsons = System.IO.File.ReadAllText(filePath42);
                 if (!string.IsNullOrEmpty(jsons))
                 {
-                    reminders = JsonConvert.DeserializeObject<Dictionary<long, bool>>(jsons);
+                    subscribers = JsonConvert.DeserializeObject<Dictionary<long, bool>>(jsons);
                 }
                 else
                 {
-                    reminders = new Dictionary<long, bool>();
+                    subscribers = new Dictionary<long, bool>();
                 }
             }
             else
             {
-                reminders = new Dictionary<long, bool>();
+                subscribers = new Dictionary<long, bool>();
             }
 
-            foreach (var subscriber in subscribers)
+            if (subscribers.ContainsKey(chatId))
             {
-                reminders[subscriber.Key] = subscriber.Value;
+                subscribers[chatId] = yasno;
+            }
+            else
+            {
+                subscribers.Add(chatId, yasno);
             }
 
-            string json = JsonConvert.SerializeObject(reminders);
-            System.IO.File.WriteAllText(filePath, json);
+            string json = JsonConvert.SerializeObject(subscribers);
+            System.IO.File.WriteAllText(filePath42, json);
         }
 
 
@@ -922,7 +926,7 @@ namespace GoogleCalendarApi
                             groupName = userGroups[chatId];
                             Program.subscribers[chatId] = true;
                             await botClient.SendTextMessageAsync(chatId, $"Сповіщення включено");
-                            SaveSubscribersToFile();
+                            SaveSubscribersToFile(chatId, true);
                         }
                         // Якщо натиснута кнопка "Ні"
                         if (message.Text == "Ні")
@@ -930,7 +934,7 @@ namespace GoogleCalendarApi
                             groupName = userGroups[chatId];
                             Program.subscribers[chatId] = false;
                             await botClient.SendTextMessageAsync(chatId, $"Сповіщення виключено");
-                            SaveSubscribersToFile();
+                            SaveSubscribersToFile(chatId, false);
                         }
                     }
                     if (message.Text == "Повернутися назад")
