@@ -63,7 +63,11 @@ namespace GoogleCalendarApi
         },
         new[]
         {
-            new KeyboardButton("Отримувати сповіщення до початку пари"),
+            new KeyboardButton("Включення отримання сповіщення до початку пари"),
+        },
+        new[]
+        {
+            new KeyboardButton("Змінити форму навчання"),
             new KeyboardButton("Змінити групу"),
         },
     });
@@ -672,6 +676,7 @@ namespace GoogleCalendarApi
                     
                     if (message.Text == "Денна")
                     {
+                        userForm[chatId] = message.Text;
                         await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupKeyboard());
                         if (groupNames.Contains(message.Text))
                         {
@@ -680,6 +685,7 @@ namespace GoogleCalendarApi
                     }
                     else if (message.Text == "Заочна")
                     {
+                        userForm[chatId] = message.Text;
                         await botClient.SendTextMessageAsync(chatId, "Виберіть свою групу:", replyMarkup: GetGroupZaochKeyboard());
                         if (groupNames.Contains(message.Text))
                         {
@@ -880,7 +886,7 @@ namespace GoogleCalendarApi
                         }
                     }
 
-                    if (message.Text == "Отримувати сповіщення до початку пари")
+                    if (message.Text == "Включення отримання сповіщення до початку пари")
                     {
                         chatId = message.Chat.Id;
                         var groupName = userGroups[chatId];
